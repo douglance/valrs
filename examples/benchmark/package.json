@@ -1,0 +1,30 @@
+{
+  "name": "valrs-benchmark",
+  "version": "1.0.0",
+  "description": "Performance benchmarks comparing Standard Schema RS against popular validators",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build:wasm": "cd ../../packages/valrs && npm run build:wasm",
+    "benchmark": "tsx benchmark.ts",
+    "benchmark:quick": "QUICK_MODE=1 tsx benchmark.ts"
+  },
+  "dependencies": {
+    "valrs": "file:../../packages/valrs",
+    "valrs-wasm": "file:../../packages/valrs/wasm",
+    "zod": "^3.24.0",
+    "valibot": "^1.0.0-beta.0",
+    "yup": "^1.6.0",
+    "@sinclair/typebox": "^0.34.0",
+    "arktype": "^2.0.0",
+    "tinybench": "^3.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "tsx": "^4.19.0",
+    "@types/node": "^22.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

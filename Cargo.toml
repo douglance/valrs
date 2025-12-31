@@ -1,15 +1,15 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/standard-schema",
-    "crates/standard-schema-derive",
-    "crates/standard-schema-json",
-    "crates/standard-schema-wasm",
+    "crates/valrs",
+    "crates/valrs-derive",
+    "crates/valrs-json",
+    "crates/valrs-wasm",
 ]
 
 # Root package for examples
 [package]
-name = "standard-schema-workspace"
+name = "valrs-workspace"
 version = "0.1.0"
 edition = "2024"
 publish = false
@@ -23,16 +23,16 @@ name = "comprehensive"
 path = "examples/comprehensive/main.rs"
 
 [dependencies]
-standard-schema = { path = "crates/standard-schema" }
-standard-schema-derive = { path = "crates/standard-schema-derive" }
-standard-schema-json = { path = "crates/standard-schema-json" }
+valrs = { path = "crates/valrs" }
+valrs-derive = { path = "crates/valrs-derive" }
+valrs-json = { path = "crates/valrs-json" }
 serde_json = "1.0"
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
-repository = "https://github.com/standard-schema/standard-schema-rs"
+repository = "https://github.com/douglance/valrs"
 authors = ["Standard Schema Contributors"]
 
 [workspace.dependencies]

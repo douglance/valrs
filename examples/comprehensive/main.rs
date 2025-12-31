@@ -1,11 +1,11 @@
-//! Comprehensive test example exercising ALL features of standard-schema-rs.
+//! Comprehensive test example exercising ALL features of valrs.
 //!
 //! Run with: cargo run --example comprehensive
 //!
 //! This example demonstrates:
 //! - All primitive types (String, bool, integers, floats)
 //! - Option<T> for each primitive
-//! - Derive macros (StandardSchema, StandardJsonSchema, both together)
+//! - Derive macros (Valrs, StandardJsonSchema, both together)
 //! - All schema attributes (optional, rename, min_length, max_length)
 //! - Nested structs with path reporting
 //! - Validation scenarios (valid, missing fields, wrong types, constraint violations)
@@ -13,8 +13,8 @@
 //! - Edge cases (empty strings, zero values, large numbers, unicode)
 
 use serde_json::json;
-use standard_schema::{JsonSchemaTarget, StandardJsonSchema, StandardSchema, ValidationResult};
-use standard_schema_derive::{StandardJsonSchema, StandardSchema};
+use valrs::{JsonSchemaTarget, StandardJsonSchema, Valrs, ValidationResult};
+use valrs_derive::{StandardJsonSchema, Valrs};
 
 // =============================================================================
 // Test Results Tracking
@@ -95,8 +95,8 @@ impl TestRunner {
                 let has_path = issues.iter().any(|i| {
                     if let Some(path) = &i.path {
                         let path_str = path.iter().map(|p| match p {
-                            standard_schema::PathSegment::Key(k) => k.clone(),
-                            standard_schema::PathSegment::Index(i) => i.to_string(),
+                            valrs::PathSegment::Key(k) => k.clone(),
+                            valrs::PathSegment::Index(i) => i.to_string(),
                         }).collect::<Vec<_>>().join(".");
                         path_str.contains(expected_path)
                     } else {
@@ -201,7 +201,7 @@ impl TestRunner {
 // =============================================================================
 
 /// Basic user struct demonstrating rename and optional fields.
-#[derive(Debug, Default, StandardSchema, StandardJsonSchema)]
+#[derive(Debug, Default, Valrs, StandardJsonSchema)]
 pub struct User {
     pub name: String,
     #[schema(rename = "emailAddress")]
@@ -212,7 +212,7 @@ pub struct User {
 }
 
 /// Profile with string length constraints.
-#[derive(Debug, Default, StandardSchema, StandardJsonSchema)]
+#[derive(Debug, Default, Valrs, StandardJsonSchema)]
 pub struct Profile {
     #[schema(min_length = 2, max_length = 50)]
     pub username: String,
@@ -221,7 +221,7 @@ pub struct Profile {
 }
 
 /// Struct with all integer types.
-#[derive(Debug, Default, StandardSchema, StandardJsonSchema)]
+#[derive(Debug, Default, Valrs, StandardJsonSchema)]
 pub struct AllIntegers {
     pub signed_8: i8,
     pub signed_16: i16,
@@ -234,14 +234,14 @@ pub struct AllIntegers {
 }
 
 /// Struct with all float types.
-#[derive(Debug, Default, StandardSchema, StandardJsonSchema)]
+#[derive(Debug, Default, Valrs, StandardJsonSchema)]
 pub struct AllFloats {
     pub float_32: f32,
     pub float_64: f64,
 }
 
 /// Struct with optional primitives.
-#[derive(Debug, Default, StandardSchema, StandardJsonSchema)]
+#[derive(Debug, Default, Valrs, StandardJsonSchema)]
 pub struct OptionalPrimitives {
     #[schema(optional)]
     pub opt_string: Option<String>,
@@ -254,7 +254,7 @@ pub struct OptionalPrimitives {
 }
 
 /// Address for nested struct testing.
-#[derive(Debug, Default, StandardSchema, StandardJsonSchema)]
+#[derive(Debug, Default, Valrs, StandardJsonSchema)]
 pub struct Address {
     pub street: String,
     pub city: String,
@@ -263,14 +263,14 @@ pub struct Address {
 }
 
 /// Person with nested address.
-#[derive(Debug, Default, StandardSchema, StandardJsonSchema)]
+#[derive(Debug, Default, Valrs, StandardJsonSchema)]
 pub struct Person {
     pub name: String,
     pub address: Address,
 }
 
 /// Struct with multiple constraints.
-#[derive(Debug, Default, StandardSchema, StandardJsonSchema)]
+#[derive(Debug, Default, Valrs, StandardJsonSchema)]
 pub struct ConstrainedFields {
     #[schema(min_length = 1)]
     pub non_empty: String,
@@ -282,16 +282,16 @@ pub struct ConstrainedFields {
     pub optional_bounded: Option<String>,
 }
 
-/// Only StandardSchema derive (no JSON Schema).
-#[derive(Debug, Default, StandardSchema)]
+/// Only Valrs derive (no JSON Schema).
+#[derive(Debug, Default, Valrs)]
 pub struct ValidationOnly {
     pub value: String,
 }
 
 /// Only StandardJsonSchema derive.
-/// Note: This requires StandardSchema to be implemented as StandardJsonSchema extends it.
+/// Note: This requires Valrs to be implemented as StandardJsonSchema extends it.
 /// For this example, we'll use the manual impl approach or just show both derives.
-#[derive(Debug, Default, StandardSchema, StandardJsonSchema)]
+#[derive(Debug, Default, Valrs, StandardJsonSchema)]
 pub struct SchemaOnly {
     pub value: String,
 }

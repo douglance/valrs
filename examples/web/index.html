@@ -308,7 +308,7 @@
     </div>
 
     <script type="module">
-        import init, * as wasm from '../../pkg/standard_schema_wasm.js';
+        import init, * as wasm from '../../pkg/valrs_wasm.js';
 
         let wasmReady = false;
         let registry = null;
@@ -608,7 +608,7 @@
             });
 
             // Metadata tests
-            test('Vendor is correct', () => wasm.vendor() === 'standard-schema-rs');
+            test('Vendor is correct', () => wasm.vendor() === 'valrs');
             test('Version is 1', () => wasm.version() === 1);
 
             // Display results

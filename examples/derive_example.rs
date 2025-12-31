@@ -1,13 +1,13 @@
-//! Example demonstrating the StandardSchema and StandardJsonSchema derive macros.
+//! Example demonstrating the Valrs and StandardJsonSchema derive macros.
 //!
 //! Run with: cargo run --example derive_example
 
 use serde_json::json;
-use standard_schema::{JsonSchemaTarget, StandardJsonSchema, StandardSchema, ValidationResult};
-use standard_schema_derive::{StandardJsonSchema, StandardSchema};
+use valrs::{JsonSchemaTarget, StandardJsonSchema, Valrs, ValidationResult};
+use valrs_derive::{StandardJsonSchema, Valrs};
 
 /// A user with basic information.
-#[derive(Debug, StandardSchema, StandardJsonSchema)]
+#[derive(Debug, Valrs, StandardJsonSchema)]
 pub struct User {
     pub name: String,
     #[schema(rename = "emailAddress")]
@@ -18,7 +18,7 @@ pub struct User {
 }
 
 /// A profile with string length validations.
-#[derive(Debug, StandardSchema, StandardJsonSchema)]
+#[derive(Debug, Valrs, StandardJsonSchema)]
 pub struct Profile {
     #[schema(min_length = 2, max_length = 50)]
     pub username: String,
@@ -27,7 +27,7 @@ pub struct Profile {
 }
 
 fn main() {
-    println!("=== StandardSchema Derive Macro Example ===\n");
+    println!("=== Valrs Derive Macro Example ===\n");
 
     // =========================================================================
     // Part 1: Validation Examples

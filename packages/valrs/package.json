@@ -1,0 +1,78 @@
+{
+  "name": "valrs",
+  "version": "0.1.0",
+  "description": "Rust-powered Standard Schema implementation with WASM bindings",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./types": {
+      "import": "./dist/types.js",
+      "types": "./dist/types.d.ts"
+    },
+    "./factory": {
+      "import": "./dist/factory.js",
+      "types": "./dist/factory.d.ts"
+    },
+    "./primitives": {
+      "import": "./dist/primitives.js",
+      "types": "./dist/primitives.d.ts"
+    }
+  },
+  "scripts": {
+    "build:wasm": "cd ../../crates/valrs-wasm && wasm-pack build --target web --out-dir ../../packages/valrs/wasm",
+    "build:ts": "tsc",
+    "build": "npm run build:wasm && npm run build:ts",
+    "build:ts-only": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist wasm"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  },
+  "peerDependencies": {
+    "valrs-wasm": "*"
+  },
+  "peerDependenciesMeta": {
+    "valrs-wasm": {
+      "optional": true
+    }
+  },
+  "files": [
+    "dist",
+    "wasm",
+    "README.md"
+  ],
+  "keywords": [
+    "valrs",
+    "validation",
+    "schema",
+    "wasm",
+    "rust",
+    "typescript",
+    "json-schema"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/douglance/valrs.git",
+    "directory": "packages/valrs"
+  },
+  "bugs": {
+    "url": "https://github.com/douglance/valrs/issues"
+  },
+  "homepage": "https://github.com/douglance/valrs#readme",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "sideEffects": false
+}

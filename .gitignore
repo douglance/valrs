@@ -1,9 +1,14 @@
 # Build artifacts
 target/
 pkg/
+dist/
+*.wasm
 
-# Node modules
+# Dependencies
 node_modules/
+
+# Lock files
+package-lock.json
 
 # IDE
 .idea/
@@ -17,3 +22,16 @@ Thumbs.db
 
 # Logs
 *.log
+npm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Environment
+.env
+.env.local
+.env.*.local
