@@ -1,0 +1,231 @@
+---
+title: Types
+description: TypeScript type definitions for valrs
+---
+
+# Type Definitions
+
+Complete TypeScript type definitions exported by valrs.
+
+## Core Types
+
+### StandardSchemaV1
+
+The core Standard Schema interface that all valrs schemas implement.
+
+```typescript
+interface StandardSchemaV1<Input = unknown, Output = Input> {
+  readonly '~standard': {
+    readonly version: 1;
+    readonly vendor: string;
+    readonly validate: (
+      value: unknown
+    ) => ValidationResult<Output> | Promise<ValidationResult<Output>>;
+  };
+}
+```
+
+---
+
+### StandardJSONSchemaV1
+
+Extended interface for schemas that support JSON Schema generation.
+
+```typescript
+interface StandardJSONSchemaV1<Input = unknown, Output = Input>
+  extends StandardSchemaV1<Input, Output> {
+  readonly '~standard': StandardSchemaV1<Input, Output>['~standard'] & {
+    readonly jsonSchema: {
+      readonly input: (options: JsonSchemaOptions) => Record<string, unknown>;
+      readonly output: (options: JsonSchemaOptions) => Record<string, unknown>;
+    };
+  };
+}
+```
+
+---
+
+### ValidationResult
+
+The result of a validation operation. A discriminated union based on the presence of `issues`.
+
+```typescript
+type ValidationResult<T> =
+  | { readonly value: T; readonly issues?: undefined }
+  | { readonly issues: ReadonlyArray<ValidationIssue>; readonly value?: undefined };
+```
+
+**Success case:** Contains `value` of type `T`, `issues` is `undefined`
+**Failure case:** Contains `issues` array, `value` is `undefined`
+
+---
+
+### ValidationIssue
+
+Describes why validation failed.
+
+```typescript
+interface ValidationIssue {
+  readonly message: string;
+  readonly path?: ReadonlyArray<PathSegment>;
+}
+```
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `message` | `string` | Human-readable error message |
+| `path` | `PathSegment[]` | Path to the invalid value (optional) |
+
+---
+
+### PathSegment
+
+A segment in a validation issue path.
+
+```typescript
+type PathSegment = string | number | { readonly key: string | number };
+```
+
+**Examples:**
+- `'name'` - String property key
+- `0` - Array index
+- `{ key: 'special.key' }` - Object with explicit key property
+
+---
+
+### JsonSchemaOptions
+
+Options passed to JSON Schema generation functions.
+
+```typescript
+interface JsonSchemaOptions {
+  readonly target: string;
+}
+```
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `target` | `string` | Target format: `'draft-2020-12'`, `'draft-07'`, or `'openapi-3.0'` |
+
+---
+
+## Utility Types
+
+### InferInput
+
+Infer the input type from a Standard Schema.
+
+```typescript
+type InferInput<T extends StandardSchemaV1> =
+  T extends StandardSchemaV1<infer I, unknown> ? I : never;
+```
+
+**Usage:**
+
+```typescript
+import type { InferInput } from 'valrs';
+import { StringSchema } from 'valrs';
+
+type StringInput = InferInput<typeof StringSchema>;
+// string
+```
+
+---
+
+### InferOutput
+
+Infer the output type from a Standard Schema.
+
+```typescript
+type InferOutput<T extends StandardSchemaV1> =
+  T extends StandardSchemaV1<unknown, infer O> ? O : never;
+```
+
+**Usage:**
+
+```typescript
+import type { InferOutput } from 'valrs';
+import { StringSchema } from 'valrs';
+
+type StringOutput = InferOutput<typeof StringSchema>;
+// string
+```
+
+---
+
+## Using Types
+
+### Generic Validation Functions
+
+```typescript
+import type { StandardSchemaV1, InferOutput, ValidationResult } from 'valrs';
+
+function validate<T extends StandardSchemaV1>(
+  schema: T,
+  value: unknown
+): InferOutput<T> | null {
+  const result = schema['~standard'].validate(value);
+
+  if ('value' in result && result.value !== undefined) {
+    return result.value;
+  }
+
+  return null;
+}
+
+// Usage
+const name = validate(StringSchema, 'hello');
+// name is typed as string | null
+```
+
+### Type-Safe Error Handling
+
+```typescript
+import type { ValidationResult, ValidationIssue } from 'valrs';
+
+function formatErrors<T>(result: ValidationResult<T>): string[] {
+  if ('value' in result && result.value !== undefined) {
+    return [];
+  }
+
+  return result.issues.map((issue: ValidationIssue) => {
+    const path = issue.path?.join('.') ?? 'root';
+    return `${path}: ${issue.message}`;
+  });
+}
+```
+
+### Schema Collection Types
+
+```typescript
+import type { StandardSchemaV1 } from 'valrs';
+
+interface SchemaMap {
+  [key: string]: StandardSchemaV1;
+}
+
+const schemas: SchemaMap = {
+  name: StringSchema,
+  age: Int32Schema,
+  active: BooleanSchema,
+};
+```
+
+---
+
+## Exports
+
+All types are exported from the main package:
+
+```typescript
+import type {
+  StandardSchemaV1,
+  StandardJSONSchemaV1,
+  ValidationResult,
+  ValidationIssue,
+  PathSegment,
+  JsonSchemaOptions,
+  InferInput,
+  InferOutput,
+} from 'valrs';
+```

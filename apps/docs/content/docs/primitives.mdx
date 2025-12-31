@@ -1,0 +1,162 @@
+---
+title: Primitive Types
+description: Built-in validators for JavaScript primitive types
+---
+
+# Primitive Types
+
+valrs provides built-in schemas for all JavaScript primitive types with precise numeric validation.
+
+## String
+
+Validates any string value:
+
+```typescript
+import { StringSchema, isValidationSuccess } from 'valrs';
+
+const result = StringSchema['~standard'].validate('hello world');
+if (isValidationSuccess(result)) {
+  console.log(result.value); // 'hello world'
+}
+
+// Rejects non-strings
+StringSchema['~standard'].validate(123);
+// { issues: [{ message: 'Expected string' }] }
+```
+
+## Number
+
+Validates IEEE 754 double-precision floating-point numbers:
+
+```typescript
+import { NumberSchema } from 'valrs';
+
+NumberSchema['~standard'].validate(3.14159);  // ✓ { value: 3.14159 }
+NumberSchema['~standard'].validate(-273.15);  // ✓ { value: -273.15 }
+NumberSchema['~standard'].validate(Infinity); // ✓ { value: Infinity }
+NumberSchema['~standard'].validate(NaN);      // ✓ { value: NaN }
+NumberSchema['~standard'].validate('42');     // ✗ issues: [...]
+```
+
+## Boolean
+
+Validates `true` or `false`:
+
+```typescript
+import { BooleanSchema } from 'valrs';
+
+BooleanSchema['~standard'].validate(true);   // ✓ { value: true }
+BooleanSchema['~standard'].validate(false);  // ✓ { value: false }
+BooleanSchema['~standard'].validate(1);      // ✗ issues: [...]
+BooleanSchema['~standard'].validate('true'); // ✗ issues: [...]
+```
+
+## Integer Types
+
+### Int32
+
+32-bit signed integer (-2,147,483,648 to 2,147,483,647):
+
+```typescript
+import { Int32Schema, IntegerSchema } from 'valrs';
+
+Int32Schema['~standard'].validate(42);           // ✓ { value: 42 }
+Int32Schema['~standard'].validate(-1000000);     // ✓ { value: -1000000 }
+Int32Schema['~standard'].validate(3.14);         // ✗ Not an integer
+Int32Schema['~standard'].validate(2147483648);   // ✗ Exceeds i32 max
+
+// IntegerSchema is an alias for Int32Schema
+IntegerSchema['~standard'].validate(42);         // ✓ { value: 42 }
+```
+
+### Int64
+
+64-bit signed integer:
+
+```typescript
+import { Int64Schema } from 'valrs';
+
+Int64Schema['~standard'].validate(9007199254740991n); // ✓
+Int64Schema['~standard'].validate(-9007199254740991); // ✓
+```
+
+<Callout type="warn">
+  JavaScript numbers can only safely represent integers up to 2^53 - 1. For larger values, consider using BigInt or string representation.
+</Callout>
+
+### Uint32
+
+32-bit unsigned integer (0 to 4,294,967,295):
+
+```typescript
+import { Uint32Schema } from 'valrs';
+
+Uint32Schema['~standard'].validate(0);           // ✓ { value: 0 }
+Uint32Schema['~standard'].validate(4294967295);  // ✓ { value: 4294967295 }
+Uint32Schema['~standard'].validate(-1);          // ✗ Negative not allowed
+```
+
+### Uint64
+
+64-bit unsigned integer:
+
+```typescript
+import { Uint64Schema } from 'valrs';
+
+Uint64Schema['~standard'].validate(0);                    // ✓
+Uint64Schema['~standard'].validate(18446744073709551615n); // ✓
+```
+
+## Float Types
+
+### Float32
+
+32-bit floating-point number:
+
+```typescript
+import { Float32Schema } from 'valrs';
+
+Float32Schema['~standard'].validate(3.14);     // ✓
+Float32Schema['~standard'].validate(1.5e10);   // ✓
+```
+
+### Float64
+
+64-bit floating-point number (same as `NumberSchema`):
+
+```typescript
+import { Float64Schema, DoubleSchema } from 'valrs';
+
+Float64Schema['~standard'].validate(3.141592653589793); // ✓
+
+// DoubleSchema is an alias for Float64Schema
+DoubleSchema['~standard'].validate(2.718281828459045);  // ✓
+```
+
+## Type Reference
+
+| Schema | TypeScript Type | Range/Description |
+|--------|-----------------|-------------------|
+| `StringSchema` | `string` | Any string value |
+| `NumberSchema` | `number` | IEEE 754 double-precision float |
+| `BooleanSchema` | `boolean` | `true` or `false` |
+| `Int32Schema` | `number` | -2^31 to 2^31-1 |
+| `Int64Schema` | `number` | -2^63 to 2^63-1 |
+| `Uint32Schema` | `number` | 0 to 2^32-1 |
+| `Uint64Schema` | `number` | 0 to 2^64-1 |
+| `Float32Schema` | `number` | 32-bit float |
+| `Float64Schema` | `number` | 64-bit float |
+
+## Aliases
+
+For convenience, valrs provides these aliases:
+
+| Alias | Points To |
+|-------|-----------|
+| `IntegerSchema` | `Int32Schema` |
+| `DoubleSchema` | `Float64Schema` |
+
+## Next Steps
+
+- [Custom Schemas](/docs/custom-schemas) - Build validators for complex types
+- [JSON Schema](/docs/json-schema) - Export schemas to JSON Schema format

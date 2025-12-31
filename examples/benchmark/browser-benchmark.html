@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schema Validation Browser Benchmark - WASM vs JS Libraries</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+            background: #0d1117;
+            color: #c9d1d9;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #58a6ff;
+            border-bottom: 1px solid #30363d;
+            padding-bottom: 12px;
+            margin-bottom: 8px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #8b949e;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+        h2 {
+            color: #c9d1d9;
+            margin-top: 32px;
+            margin-bottom: 16px;
+            font-size: 20px;
+        }
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+            padding: 16px;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+        }
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #484f58;
+        }
+        .status-dot.loading {
+            background: #d29922;
+            animation: pulse 1.5s infinite;
+        }
+        .status-dot.ready {
+            background: #3fb950;
+        }
+        .status-dot.error {
+            background: #f85149;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+        button {
+            background: #238636;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.15s ease;
+        }
+        button:hover:not(:disabled) {
+            background: #2ea043;
+        }
+        button:disabled {
+            background: #21262d;
+            color: #484f58;
+            cursor: not-allowed;
+        }
+        button.secondary {
+            background: #21262d;
+            border: 1px solid #30363d;
+        }
+        button.secondary:hover:not(:disabled) {
+            background: #30363d;
+        }
+        .config {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+        label {
+            color: #8b949e;
+            font-size: 14px;
+        }
+        input[type="number"], select {
+            background: #21262d;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            width: 120px;
+        }
+        input[type="number"]:focus, select:focus {
+            outline: none;
+            border-color: #58a6ff;
+        }
+        .progress-container {
+            margin: 24px 0;
+            padding: 16px;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+        }
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .progress-bar {
+            height: 8px;
+            background: #21262d;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #58a6ff, #3fb950);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+        .progress-log {
+            margin-top: 12px;
+            font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+            font-size: 12px;
+            color: #8b949e;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+        .progress-log .current {
+            color: #58a6ff;
+        }
+        .results-section {
+            margin-top: 32px;
+        }
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+            font-size: 14px;
+        }
+        .results-table th {
+            text-align: left;
+            padding: 12px 16px;
+            background: #161b22;
+            border-bottom: 2px solid #30363d;
+            color: #8b949e;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+        }
+        .results-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #21262d;
+        }
+        .results-table tr:hover {
+            background: rgba(56, 139, 253, 0.1);
+        }
+        .results-table .library-name {
+            font-weight: 600;
+            color: #c9d1d9;
+        }
+        .results-table .ops-sec {
+            font-family: 'Monaco', 'Menlo', monospace;
+            color: #3fb950;
+            text-align: right;
+        }
+        .results-table .mean-time {
+            font-family: 'Monaco', 'Menlo', monospace;
+            color: #8b949e;
+            text-align: right;
+        }
+        .results-table .relative {
+            text-align: right;
+        }
+        .relative-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .relative-badge.baseline {
+            background: #1f6feb33;
+            color: #58a6ff;
+        }
+        .relative-badge.faster {
+            background: #23863633;
+            color: #3fb950;
+        }
+        .relative-badge.slower {
+            background: #f8514933;
+            color: #f85149;
+        }
+        .bar-cell {
+            width: 200px;
+        }
+        .perf-bar {
+            height: 20px;
+            background: #21262d;
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+        .perf-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+        .perf-bar-fill.wasm {
+            background: linear-gradient(90deg, #58a6ff, #388bfd);
+        }
+        .perf-bar-fill.js {
+            background: linear-gradient(90deg, #8b949e, #6e7681);
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+            margin-top: 24px;
+        }
+        .summary-card {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 16px;
+        }
+        .summary-card h3 {
+            margin: 0 0 8px 0;
+            font-size: 12px;
+            color: #8b949e;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .summary-card .value {
+            font-size: 32px;
+            font-weight: 600;
+            color: #c9d1d9;
+            font-family: 'Monaco', 'Menlo', monospace;
+        }
+        .summary-card .unit {
+            font-size: 14px;
+            color: #8b949e;
+            margin-left: 4px;
+        }
+        .summary-card.highlight .value {
+            color: #3fb950;
+        }
+        .verification-section {
+            margin-top: 32px;
+            padding: 16px;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+        }
+        .verification-grid {
+            display: grid;
+            grid-template-columns: auto repeat(5, 1fr);
+            gap: 1px;
+            background: #30363d;
+            margin-top: 16px;
+            font-size: 12px;
+        }
+        .verification-grid > div {
+            background: #0d1117;
+            padding: 8px 12px;
+        }
+        .verification-grid .header {
+            background: #161b22;
+            font-weight: 600;
+            color: #8b949e;
+        }
+        .verification-grid .lib-name {
+            font-weight: 500;
+        }
+        .verification-grid .pass {
+            color: #3fb950;
+            text-align: center;
+        }
+        .verification-grid .fail {
+            color: #f85149;
+            text-align: center;
+        }
+        .test-description {
+            margin-top: 24px;
+            padding: 16px;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+        }
+        .test-description h3 {
+            margin: 0 0 12px 0;
+            color: #c9d1d9;
+            font-size: 14px;
+        }
+        .test-description pre {
+            margin: 0;
+            padding: 12px;
+            background: #0d1117;
+            border-radius: 4px;
+            font-size: 12px;
+            overflow-x: auto;
+            color: #8b949e;
+        }
+        .test-description code {
+            color: #79c0ff;
+        }
+        .hidden {
+            display: none;
+        }
+        .error-message {
+            padding: 16px;
+            background: #3d1f1f;
+            border: 1px solid #f85149;
+            border-radius: 6px;
+            color: #f85149;
+            margin-top: 16px;
+        }
+        .info-message {
+            padding: 12px 16px;
+            background: #1f2937;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            color: #8b949e;
+            font-size: 13px;
+            margin-top: 16px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Schema Validation Browser Benchmark</h1>
+    <p class="subtitle">Comparing valrs (Rust/WASM) against popular JavaScript validation libraries. Running in actual browser with real WASM module.</p>
+
+    <div class="status-bar">
+        <div class="status-item">
+            <div class="status-dot loading" id="wasm-status"></div>
+            <span id="wasm-status-text">Loading WASM...</span>
+        </div>
+        <div class="status-item">
+            <div class="status-dot loading" id="libs-status"></div>
+            <span id="libs-status-text">Loading libraries...</span>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button id="run-btn" disabled>Run Benchmark</button>
+        <button id="quick-btn" class="secondary" disabled>Quick Run (1K iterations)</button>
+        <div class="config">
+            <label for="iterations">Iterations:</label>
+            <input type="number" id="iterations" value="10000" min="100" max="100000" step="1000">
+        </div>
+    </div>
+
+    <div class="progress-container hidden" id="progress-container">
+        <div class="progress-header">
+            <span id="progress-label">Initializing...</span>
+            <span id="progress-percent">0%</span>
+        </div>
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        <div class="progress-log" id="progress-log"></div>
+    </div>
+
+    <div class="test-description">
+        <h3>Schema Under Test</h3>
+        <pre><code>interface User {
+  name: string;        // min length 2, max 100
+  email: string;       // email format validation
+  age: number;         // min 0, max 150
+  isActive: boolean;
+  tags: string[];      // array of strings
+  address?: {          // optional nested object
+    street: string;
+    city: string;
+    zip: string;
+  };
+}</code></pre>
+    </div>
+
+    <div class="verification-section hidden" id="verification-section">
+        <h2>Validator Verification</h2>
+        <p style="color: #8b949e; font-size: 13px; margin: 0;">Ensuring all validators produce correct results before benchmarking.</p>
+        <div class="verification-grid" id="verification-grid"></div>
+    </div>
+
+    <div class="results-section hidden" id="results-section">
+        <h2>Benchmark Results</h2>
+
+        <div class="summary-grid" id="summary-grid"></div>
+
+        <div id="test-results"></div>
+    </div>
+
+    <div class="info-message">
+        <strong>Note:</strong> This benchmark runs the actual WASM module in the browser, not the JavaScript fallback used in Node.js.
+        Results may vary based on browser, CPU, and system load. For accurate comparisons, close other tabs and applications.
+    </div>
+
+    <script type="module">
+        // ============================================================================
+        // Test Data (same as Node.js benchmark)
+        // ============================================================================
+
+        const VALID_SIMPLE_USER = {
+            name: 'John Doe',
+            email: 'john.doe@example.com',
+            age: 30,
+            isActive: true,
+            tags: ['developer', 'typescript'],
+        };
+
+        const VALID_COMPLEX_USER = {
+            name: 'Jane Smith',
+            email: 'jane.smith@example.com',
+            age: 28,
+            isActive: true,
+            tags: ['designer', 'ui', 'ux'],
+            address: {
+                street: '123 Main Street',
+                city: 'San Francisco',
+                zip: '94102',
+            },
+        };
+
+        const INVALID_WRONG_TYPE = {
+            name: 12345,
+            email: 'test@example.com',
+            age: 25,
+            isActive: true,
+            tags: ['test'],
+        };
+
+        const INVALID_CONSTRAINT_VIOLATION = {
+            name: 'Test User',
+            email: 'test@example.com',
+            age: -5,
+            isActive: true,
+            tags: ['test'],
+        };
+
+        const INVALID_NESTED_ERROR = {
+            name: 'Test User',
+            email: 'test@example.com',
+            age: 25,
+            isActive: true,
+            tags: ['test'],
+            address: {
+                street: '123 Main St',
+                city: 'NYC',
+                zip: 12345,
+            },
+        };
+
+        const TEST_CASES = [
+            { name: 'Valid Simple', data: VALID_SIMPLE_USER, expected: true },
+            { name: 'Valid Complex', data: VALID_COMPLEX_USER, expected: true },
+            { name: 'Invalid Type', data: INVALID_WRONG_TYPE, expected: false },
+            { name: 'Invalid Constraint', data: INVALID_CONSTRAINT_VIOLATION, expected: false },
+            { name: 'Invalid Nested', data: INVALID_NESTED_ERROR, expected: false },
+        ];
+
+        const BENCHMARK_TESTS = [
+            { name: 'Valid Simple Object', data: VALID_SIMPLE_USER },
+            { name: 'Valid Complex Object (with address)', data: VALID_COMPLEX_USER },
+            { name: 'Invalid - Wrong Type', data: INVALID_WRONG_TYPE },
+            { name: 'Invalid - Constraint Violation (age = -5)', data: INVALID_CONSTRAINT_VIOLATION },
+            { name: 'Invalid - Nested Error (bad zip)', data: INVALID_NESTED_ERROR },
+        ];
+
+        // User JSON Schema
+        const USER_SCHEMA = {
+            type: 'object',
+            properties: {
+                name: { type: 'string', minLength: 2, maxLength: 100 },
+                email: { type: 'string', format: 'email' },
+                age: { type: 'integer', minimum: 0, maximum: 150 },
+                isActive: { type: 'boolean' },
+                tags: { type: 'array', items: { type: 'string' } },
+                address: {
+                    type: 'object',
+                    properties: {
+                        street: { type: 'string' },
+                        city: { type: 'string' },
+                        zip: { type: 'string' },
+                    },
+                    required: ['street', 'city', 'zip'],
+                },
+            },
+            required: ['name', 'email', 'age', 'isActive', 'tags'],
+        };
+
+        // ============================================================================
+        // State
+        // ============================================================================
+
+        let wasm = null;
+        let wasmRegistry = null;
+        let validators = [];
+        let isRunning = false;
+
+        // ============================================================================
+        // DOM Elements
+        // ============================================================================
+
+        const wasmStatusDot = document.getElementById('wasm-status');
+        const wasmStatusText = document.getElementById('wasm-status-text');
+        const libsStatusDot = document.getElementById('libs-status');
+        const libsStatusText = document.getElementById('libs-status-text');
+        const runBtn = document.getElementById('run-btn');
+        const quickBtn = document.getElementById('quick-btn');
+        const iterationsInput = document.getElementById('iterations');
+        const progressContainer = document.getElementById('progress-container');
+        const progressLabel = document.getElementById('progress-label');
+        const progressPercent = document.getElementById('progress-percent');
+        const progressFill = document.getElementById('progress-fill');
+        const progressLog = document.getElementById('progress-log');
+        const verificationSection = document.getElementById('verification-section');
+        const verificationGrid = document.getElementById('verification-grid');
+        const resultsSection = document.getElementById('results-section');
+        const summaryGrid = document.getElementById('summary-grid');
+        const testResults = document.getElementById('test-results');
+
+        // ============================================================================
+        // Library Loading
+        // ============================================================================
+
+        async function loadWasm() {
+            try {
+                const wasmModule = await import('../../pkg/valrs_wasm.js');
+                await wasmModule.default();
+                wasm = wasmModule;
+
+                wasmRegistry = new wasm.SchemaRegistry();
+                wasmRegistry.register('User', USER_SCHEMA);
+
+                wasmStatusDot.className = 'status-dot ready';
+                wasmStatusText.textContent = `WASM Ready (${wasm.vendor()} v${wasm.version()})`;
+                return true;
+            } catch (error) {
+                wasmStatusDot.className = 'status-dot error';
+                wasmStatusText.textContent = `WASM Error: ${error.message}`;
+                console.error('WASM load error:', error);
+                return false;
+            }
+        }
+
+        async function loadZod() {
+            const { z } = await import('https://esm.sh/zod@3.24.2');
+
+            const AddressSchema = z.object({
+                street: z.string(),
+                city: z.string(),
+                zip: z.string(),
+            });
+
+            const UserSchema = z.object({
+                name: z.string().min(2).max(100),
+                email: z.string().email(),
+                age: z.number().int().min(0).max(150),
+                isActive: z.boolean(),
+                tags: z.array(z.string()),
+                address: AddressSchema.optional(),
+            });
+
+            return {
+                name: 'zod',
+                validate: (data) => UserSchema.safeParse(data).success,
+            };
+        }
+
+        async function loadValibot() {
+            const v = await import('https://esm.sh/valibot@1.0.0');
+
+            const AddressSchema = v.object({
+                street: v.string(),
+                city: v.string(),
+                zip: v.string(),
+            });
+
+            const UserSchema = v.object({
+                name: v.pipe(v.string(), v.minLength(2), v.maxLength(100)),
+                email: v.pipe(v.string(), v.email()),
+                age: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(150)),
+                isActive: v.boolean(),
+                tags: v.array(v.string()),
+                address: v.optional(AddressSchema),
+            });
+
+            return {
+                name: 'valibot',
+                validate: (data) => v.safeParse(UserSchema, data).success,
+            };
+        }
+
+        async function loadTypebox() {
+            const { Type, FormatRegistry } = await import('https://esm.sh/@sinclair/typebox@0.34.15');
+            const { TypeCompiler } = await import('https://esm.sh/@sinclair/typebox@0.34.15/compiler');
+
+            if (!FormatRegistry.Has('email')) {
+                FormatRegistry.Set('email', (value) => {
+                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    return emailRegex.test(value);
+                });
+            }
+
+            const AddressSchema = Type.Object({
+                street: Type.String(),
+                city: Type.String(),
+                zip: Type.String(),
+            });
+
+            const UserSchema = Type.Object({
+                name: Type.String({ minLength: 2, maxLength: 100 }),
+                email: Type.String({ format: 'email' }),
+                age: Type.Integer({ minimum: 0, maximum: 150 }),
+                isActive: Type.Boolean(),
+                tags: Type.Array(Type.String()),
+                address: Type.Optional(AddressSchema),
+            });
+
+            const CompiledSchema = TypeCompiler.Compile(UserSchema);
+
+            return {
+                name: 'typebox',
+                validate: (data) => CompiledSchema.Check(data),
+            };
+        }
+
+        async function loadArktype() {
+            const { type } = await import('https://esm.sh/arktype@2.0.4');
+
+            const UserSchema = type({
+                name: 'string >= 2 & string <= 100',
+                email: 'string.email',
+                age: 'integer >= 0 & integer <= 150',
+                isActive: 'boolean',
+                tags: 'string[]',
+                'address?': {
+                    street: 'string',
+                    city: 'string',
+                    zip: 'string',
+                },
+            });
+
+            return {
+                name: 'arktype',
+                validate: (data) => !(UserSchema(data) instanceof type.errors),
+            };
+        }
+
+        async function loadLibraries() {
+            const libs = [];
+            let loaded = 0;
+            const total = 4;
+
+            const updateStatus = () => {
+                libsStatusText.textContent = `Loading libraries (${loaded}/${total})...`;
+            };
+
+            // Load valrs WASM validator
+            if (wasmRegistry) {
+                libs.push({
+                    name: 'valrs (WASM)',
+                    isWasm: true,
+                    validate: (data) => !wasmRegistry.validate('User', data).issues,
+                });
+            }
+
+            // Load JS libraries in parallel
+            const loaders = [
+                loadZod().then(v => { loaded++; updateStatus(); return v; }).catch(e => { loaded++; console.error('Zod:', e); return null; }),
+                loadValibot().then(v => { loaded++; updateStatus(); return v; }).catch(e => { loaded++; console.error('Valibot:', e); return null; }),
+                loadTypebox().then(v => { loaded++; updateStatus(); return v; }).catch(e => { loaded++; console.error('TypeBox:', e); return null; }),
+                loadArktype().then(v => { loaded++; updateStatus(); return v; }).catch(e => { loaded++; console.error('ArkType:', e); return null; }),
+            ];
+
+            const results = await Promise.all(loaders);
+
+            for (const result of results) {
+                if (result) {
+                    libs.push(result);
+                }
+            }
+
+            validators = libs;
+
+            if (libs.length > 0) {
+                libsStatusDot.className = 'status-dot ready';
+                libsStatusText.textContent = `${libs.length} validators ready`;
+                return true;
+            } else {
+                libsStatusDot.className = 'status-dot error';
+                libsStatusText.textContent = 'Failed to load libraries';
+                return false;
+            }
+        }
+
+        // ============================================================================
+        // Progress Logging
+        // ============================================================================
+
+        function logProgress(message, isCurrent = false) {
+            const div = document.createElement('div');
+            div.textContent = message;
+            if (isCurrent) {
+                div.className = 'current';
+            }
+            progressLog.appendChild(div);
+            progressLog.scrollTop = progressLog.scrollHeight;
+        }
+
+        function updateProgress(percent, label) {
+            progressFill.style.width = `${percent}%`;
+            progressPercent.textContent = `${Math.round(percent)}%`;
+            if (label) {
+                progressLabel.textContent = label;
+            }
+        }
+
+        // ============================================================================
+        // Verification
+        // ============================================================================
+
+        function verifyValidators() {
+            verificationSection.classList.remove('hidden');
+
+            let html = `
+                <div class="header">Library</div>
+                <div class="header">Valid Simple</div>
+                <div class="header">Valid Complex</div>
+                <div class="header">Invalid Type</div>
+                <div class="header">Invalid Constraint</div>
+                <div class="header">Invalid Nested</div>
+            `;
+
+            const results = [];
+
+            for (const validator of validators) {
+                html += `<div class="lib-name">${validator.name}</div>`;
+
+                for (const testCase of TEST_CASES) {
+                    const result = validator.validate(testCase.data);
+                    const passed = result === testCase.expected;
+                    results.push({ validator: validator.name, test: testCase.name, passed });
+
+                    const icon = passed ? (testCase.expected ? 'pass' : 'reject') : 'MISMATCH';
+                    html += `<div class="${passed ? 'pass' : 'fail'}">${icon}</div>`;
+                }
+            }
+
+            verificationGrid.innerHTML = html;
+
+            const mismatches = results.filter(r => !r.passed);
+            return mismatches.length === 0;
+        }
+
+        // ============================================================================
+        // Benchmarking
+        // ============================================================================
+
+        function runSingleBenchmark(validator, data, iterations) {
+            // Warmup
+            const warmupIterations = Math.min(100, Math.floor(iterations / 10));
+            for (let i = 0; i < warmupIterations; i++) {
+                validator.validate(data);
+            }
+
+            // Actual benchmark
+            const start = performance.now();
+            for (let i = 0; i < iterations; i++) {
+                validator.validate(data);
+            }
+            const end = performance.now();
+
+            const totalTimeMs = end - start;
+            // Guard against division by zero / near-zero time
+            const safeTimeMs = Math.max(totalTimeMs, 0.001);
+            const meanTimeMs = safeTimeMs / iterations;
+            const opsPerSecond = iterations / (safeTimeMs / 1000);
+
+            return {
+                libraryName: validator.name,
+                opsPerSecond: Number.isFinite(opsPerSecond) ? opsPerSecond : 0,
+                meanTimeMs,
+                totalTimeMs: safeTimeMs,
+                iterations,
+                isWasm: validator.isWasm || false,
+            };
+        }
+
+        async function runBenchmarks(iterations) {
+            isRunning = true;
+            runBtn.disabled = true;
+            quickBtn.disabled = true;
+            progressContainer.classList.remove('hidden');
+            progressLog.innerHTML = '';
+
+            const allResults = [];
+            const totalTests = BENCHMARK_TESTS.length * validators.length;
+            let completedTests = 0;
+
+            // Verify validators first
+            logProgress('Verifying validators...');
+            const verified = verifyValidators();
+            if (!verified) {
+                logProgress('Warning: Some validators produced unexpected results');
+            } else {
+                logProgress('All validators verified successfully');
+            }
+
+            // Run benchmarks
+            for (const test of BENCHMARK_TESTS) {
+                const testResults = [];
+                logProgress(`\nRunning: ${test.name}`, true);
+
+                for (const validator of validators) {
+                    updateProgress(
+                        (completedTests / totalTests) * 100,
+                        `${test.name} - ${validator.name}`
+                    );
+
+                    // Allow UI to update
+                    await new Promise(resolve => setTimeout(resolve, 0));
+
+                    const result = runSingleBenchmark(validator, test.data, iterations);
+                    result.testName = test.name;
+                    testResults.push(result);
+                    allResults.push(result);
+
+                    completedTests++;
+                    logProgress(`  ${validator.name}: ${formatNumber(result.opsPerSecond)} ops/sec`);
+                }
+
+                // Sort and display test results
+                testResults.sort((a, b) => b.opsPerSecond - a.opsPerSecond);
+            }
+
+            updateProgress(100, 'Complete!');
+            logProgress('\nBenchmark complete!');
+
+            // Display results
+            displayResults(allResults, iterations);
+
+            isRunning = false;
+            runBtn.disabled = false;
+            quickBtn.disabled = false;
+        }
+
+        // ============================================================================
+        // Results Display
+        // ============================================================================
+
+        function formatNumber(num) {
+            if (num >= 1_000_000) {
+                return (num / 1_000_000).toFixed(2) + 'M';
+            }
+            if (num >= 1_000) {
+                return (num / 1_000).toFixed(2) + 'K';
+            }
+            return num.toFixed(2);
+        }
+
+        function formatTime(ms) {
+            if (ms < 0.001) {
+                return (ms * 1_000_000).toFixed(2) + ' ns';
+            }
+            if (ms < 1) {
+                return (ms * 1_000).toFixed(2) + ' us';
+            }
+            return ms.toFixed(2) + ' ms';
+        }
+
+        function displayResults(allResults, iterations) {
+            resultsSection.classList.remove('hidden');
+
+            // Calculate averages by library
+            const avgByLibrary = new Map();
+            for (const result of allResults) {
+                const current = avgByLibrary.get(result.libraryName) || { totalOps: 0, count: 0, isWasm: result.isWasm };
+                current.totalOps += result.opsPerSecond;
+                current.count += 1;
+                avgByLibrary.set(result.libraryName, current);
+            }
+
+            const averages = [];
+            for (const [libraryName, stats] of avgByLibrary) {
+                averages.push({
+                    libraryName,
+                    opsPerSecond: stats.totalOps / stats.count,
+                    isWasm: stats.isWasm,
+                });
+            }
+            averages.sort((a, b) => b.opsPerSecond - a.opsPerSecond);
+
+            // Find valrs result for comparison
+            const valrsResult = averages.find(a => a.libraryName.includes('valrs'));
+            const baselineOps = valrsResult?.opsPerSecond || averages[0]?.opsPerSecond || 1;
+            const maxOps = averages[0]?.opsPerSecond || 1;
+
+            // Display summary cards
+            const fastest = averages[0];
+            const wasmResult = averages.find(a => a.isWasm);
+
+            summaryGrid.innerHTML = `
+                <div class="summary-card highlight">
+                    <h3>Fastest Overall</h3>
+                    <div class="value">${fastest?.libraryName || 'N/A'}</div>
+                </div>
+                <div class="summary-card">
+                    <h3>Fastest Ops/Sec (Avg)</h3>
+                    <div class="value">${formatNumber(maxOps)}<span class="unit">ops/sec</span></div>
+                </div>
+                <div class="summary-card">
+                    <h3>valrs (WASM) Avg</h3>
+                    <div class="value">${wasmResult ? formatNumber(wasmResult.opsPerSecond) : 'N/A'}<span class="unit">ops/sec</span></div>
+                </div>
+                <div class="summary-card">
+                    <h3>Iterations Per Test</h3>
+                    <div class="value">${iterations.toLocaleString()}</div>
+                </div>
+            `;
+
+            // Build results tables for each test
+            let tablesHtml = '';
+
+            // Group results by test
+            const resultsByTest = new Map();
+            for (const result of allResults) {
+                const testResults = resultsByTest.get(result.testName) || [];
+                testResults.push(result);
+                resultsByTest.set(result.testName, testResults);
+            }
+
+            for (const [testName, results] of resultsByTest) {
+                results.sort((a, b) => b.opsPerSecond - a.opsPerSecond);
+                const testMax = results[0]?.opsPerSecond || 1;
+
+                tablesHtml += `
+                    <h3 style="margin-top: 24px;">${testName}</h3>
+                    <table class="results-table">
+                        <thead>
+                            <tr>
+                                <th>Library</th>
+                                <th style="text-align: right;">Ops/Sec</th>
+                                <th style="text-align: right;">Mean Time</th>
+                                <th class="bar-cell">Performance</th>
+                                <th style="text-align: right;">vs valrs</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                for (const result of results) {
+                    const barWidth = (result.opsPerSecond / testMax) * 100;
+                    const relative = result.opsPerSecond / (results.find(r => r.libraryName.includes('valrs'))?.opsPerSecond || result.opsPerSecond);
+
+                    let relativeClass = 'baseline';
+                    let relativeText = '(baseline)';
+                    if (!result.libraryName.includes('valrs')) {
+                        if (relative > 1) {
+                            relativeClass = 'faster';
+                            relativeText = relative.toFixed(2) + 'x faster';
+                        } else {
+                            relativeClass = 'slower';
+                            relativeText = relative.toFixed(2) + 'x';
+                        }
+                    }
+
+                    tablesHtml += `
+                        <tr>
+                            <td class="library-name">${result.libraryName}</td>
+                            <td class="ops-sec">${formatNumber(result.opsPerSecond)}</td>
+                            <td class="mean-time">${formatTime(result.meanTimeMs)}</td>
+                            <td class="bar-cell">
+                                <div class="perf-bar">
+                                    <div class="perf-bar-fill ${result.isWasm ? 'wasm' : 'js'}" style="width: ${barWidth}%"></div>
+                                </div>
+                            </td>
+                            <td class="relative">
+                                <span class="relative-badge ${relativeClass}">${relativeText}</span>
+                            </td>
+                        </tr>
+                    `;
+                }
+
+                tablesHtml += '</tbody></table>';
+            }
+
+            // Summary table
+            tablesHtml += `
+                <h2 style="margin-top: 32px;">Summary - Average Performance Across All Tests</h2>
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th>Library</th>
+                            <th style="text-align: right;">Avg Ops/Sec</th>
+                            <th class="bar-cell">Performance</th>
+                            <th style="text-align: right;">vs valrs</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            for (const avg of averages) {
+                const barWidth = (avg.opsPerSecond / maxOps) * 100;
+                const relative = avg.opsPerSecond / baselineOps;
+
+                let relativeClass = 'baseline';
+                let relativeText = '(baseline)';
+                if (!avg.libraryName.includes('valrs')) {
+                    if (relative > 1) {
+                        relativeClass = 'faster';
+                        relativeText = relative.toFixed(2) + 'x faster';
+                    } else {
+                        relativeClass = 'slower';
+                        relativeText = relative.toFixed(2) + 'x';
+                    }
+                }
+
+                tablesHtml += `
+                    <tr>
+                        <td class="library-name">${avg.libraryName}</td>
+                        <td class="ops-sec">${formatNumber(avg.opsPerSecond)}</td>
+                        <td class="bar-cell">
+                            <div class="perf-bar">
+                                <div class="perf-bar-fill ${avg.isWasm ? 'wasm' : 'js'}" style="width: ${barWidth}%"></div>
+                            </div>
+                        </td>
+                        <td class="relative">
+                            <span class="relative-badge ${relativeClass}">${relativeText}</span>
+                        </td>
+                    </tr>
+                `;
+            }
+
+            tablesHtml += '</tbody></table>';
+
+            testResults.innerHTML = tablesHtml;
+        }
+
+        // ============================================================================
+        // Event Handlers
+        // ============================================================================
+
+        runBtn.addEventListener('click', () => {
+            const iterations = parseInt(iterationsInput.value) || 10000;
+            runBenchmarks(iterations);
+        });
+
+        quickBtn.addEventListener('click', () => {
+            runBenchmarks(1000);
+        });
+
+        // ============================================================================
+        // Initialize
+        // ============================================================================
+
+        async function init() {
+            const wasmLoaded = await loadWasm();
+            const libsLoaded = await loadLibraries();
+
+            if (wasmLoaded && libsLoaded) {
+                runBtn.disabled = false;
+                quickBtn.disabled = false;
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

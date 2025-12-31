@@ -1,0 +1,222 @@
+---
+title: Standard Schema
+description: How valrs implements the Standard Schema specification
+---
+
+# Standard Schema Compliance
+
+valrs implements the [Standard Schema](https://standardschema.dev/) specification v1, enabling interoperability with any tool that supports the standard.
+
+## What is Standard Schema?
+
+Standard Schema is a specification that defines a common interface for schema validation libraries. By implementing this interface, valrs schemas can be used with any tool that understands Standard Schema - form libraries, API frameworks, validation utilities, and more.
+
+## The Interface
+
+Every valrs schema implements the `StandardSchemaV1` interface:
+
+```typescript
+interface StandardSchemaV1<Input = unknown, Output = Input> {
+  readonly '~standard': {
+    readonly version: 1;
+    readonly vendor: string;
+    readonly validate: (value: unknown) => ValidationResult<Output>;
+  };
+}
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `version` | `1` | The Standard Schema version |
+| `vendor` | `string` | The library name (`'valrs'`) |
+| `validate` | `function` | The validation function |
+
+### Validation Result
+
+The `validate` function returns a discriminated union:
+
+```typescript
+type ValidationResult<T> =
+  | { readonly value: T; readonly issues?: undefined }  // Success
+  | { readonly issues: ReadonlyArray<ValidationIssue>; readonly value?: undefined }; // Failure
+
+interface ValidationIssue {
+  readonly message: string;
+  readonly path?: ReadonlyArray<string | number | { key: string | number }>;
+}
+```
+
+## Using valrs with Standard Schema Tools
+
+### Type Constraints
+
+Use `StandardSchemaV1` as a type constraint to accept any compliant schema:
+
+```typescript
+import type { StandardSchemaV1, InferOutput } from 'valrs';
+
+function validate<T extends StandardSchemaV1>(
+  schema: T,
+  value: unknown
+): InferOutput<T> | null {
+  const result = schema['~standard'].validate(value);
+  if ('value' in result) {
+    return result.value;
+  }
+  return null;
+}
+
+// Works with any valrs schema
+validate(StringSchema, 'hello');
+validate(Int32Schema, 42);
+validate(CustomSchema, data);
+```
+
+### Interoperability Example
+
+```typescript
+import { StringSchema } from 'valrs';
+import { z } from 'zod';
+import * as v from 'valibot';
+
+// All these schemas implement StandardSchemaV1
+const schemas = [
+  StringSchema,              // valrs
+  z.string(),                // zod
+  v.string(),                // valibot
+];
+
+// A generic function that works with any Standard Schema
+function validateAll<T extends StandardSchemaV1>(
+  schema: T,
+  values: unknown[]
+) {
+  return values.map(value => schema['~standard'].validate(value));
+}
+```
+
+## JSON Schema Extension
+
+valrs also implements `StandardJSONSchemaV1`, which extends the base interface with JSON Schema generation:
+
+```typescript
+interface StandardJSONSchemaV1<Input = unknown, Output = Input>
+  extends StandardSchemaV1<Input, Output> {
+  readonly '~standard': StandardSchemaV1<Input, Output>['~standard'] & {
+    readonly jsonSchema: {
+      readonly input: (options: JsonSchemaOptions) => Record<string, unknown>;
+      readonly output: (options: JsonSchemaOptions) => Record<string, unknown>;
+    };
+  };
+}
+```
+
+This allows tools to generate JSON Schema definitions from your valrs schemas:
+
+```typescript
+import { StringSchema } from 'valrs';
+
+// Check if schema supports JSON Schema generation
+if ('jsonSchema' in StringSchema['~standard']) {
+  const schema = StringSchema['~standard'].jsonSchema.input({
+    target: 'draft-2020-12'
+  });
+  console.log(schema); // { type: 'string' }
+}
+```
+
+## Type Inference
+
+valrs exports utility types for inferring input and output types:
+
+```typescript
+import type { InferInput, InferOutput, StandardSchemaV1 } from 'valrs';
+
+// Infer types from a schema
+type StringInput = InferInput<typeof StringSchema>;   // string
+type StringOutput = InferOutput<typeof StringSchema>; // string
+
+// Works with custom schemas too
+const TransformSchema = createSchema<string, number>(/* ... */);
+type TransformInput = InferInput<typeof TransformSchema>;   // string
+type TransformOutput = InferOutput<typeof TransformSchema>; // number
+```
+
+## Vendor Information
+
+valrs identifies itself through the `vendor` property:
+
+```typescript
+import { StringSchema, VENDOR, VERSION } from 'valrs';
+
+console.log(StringSchema['~standard'].vendor);  // 'valrs'
+console.log(StringSchema['~standard'].version); // 1
+
+// Or use the exported constants
+console.log(VENDOR);  // 'valrs'
+console.log(VERSION); // 1
+```
+
+## Checking Schema Compliance
+
+You can check if an object implements Standard Schema:
+
+```typescript
+function isStandardSchema(obj: unknown): obj is StandardSchemaV1 {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    '~standard' in obj &&
+    typeof (obj as any)['~standard'] === 'object' &&
+    (obj as any)['~standard'].version === 1 &&
+    typeof (obj as any)['~standard'].validate === 'function'
+  );
+}
+
+// Usage
+if (isStandardSchema(unknownSchema)) {
+  const result = unknownSchema['~standard'].validate(data);
+}
+```
+
+## Benefits of Standard Schema
+
+### 1. Library Agnostic
+
+Write validation utilities that work with any Standard Schema library:
+
+```typescript
+// This function works with valrs, Zod, Valibot, and more
+async function validateForm<T extends StandardSchemaV1>(
+  schema: T,
+  formData: FormData
+): Promise<InferOutput<T>> {
+  const data = Object.fromEntries(formData);
+  const result = schema['~standard'].validate(data);
+
+  if ('issues' in result && result.issues) {
+    throw new ValidationError(result.issues);
+  }
+
+  return result.value;
+}
+```
+
+### 2. Ecosystem Compatibility
+
+Frameworks that support Standard Schema automatically work with valrs:
+
+- Form libraries can validate using valrs schemas
+- API frameworks can use valrs for request validation
+- Documentation tools can generate specs from valrs schemas
+
+### 3. Future Proof
+
+As the Standard Schema specification evolves, valrs will maintain compatibility while adding new features.
+
+## Next Steps
+
+- [API Reference](/docs/api) - Complete API documentation
+- [Getting Started](/docs/getting-started) - Quick setup guide

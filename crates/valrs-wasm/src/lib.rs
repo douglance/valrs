@@ -467,6 +467,8 @@ impl Default for SchemaRegistry {
 /// - required properties
 /// - properties validation (recursive)
 /// - items validation for arrays
+/// - minimum/maximum for numbers
+/// - minLength/maxLength for strings
 fn validate_against_schema(value: &Value, schema: &Value) -> ValidationResult<Value> {
     let schema_obj = match schema.as_object() {
         Some(obj) => obj,
@@ -481,6 +483,20 @@ fn validate_against_schema(value: &Value, schema: &Value) -> ValidationResult<Va
                 type_value,
                 json_type_name(value)
             ));
+        }
+    }
+
+    // For numbers, validate minimum/maximum
+    if value.is_number() {
+        if let Some(issues) = validate_number_schema(value, schema_obj) {
+            return ValidationResult::failures(issues);
+        }
+    }
+
+    // For strings, validate minLength/maxLength
+    if value.is_string() {
+        if let Some(issues) = validate_string_schema(value, schema_obj) {
+            return ValidationResult::failures(issues);
         }
     }
 
@@ -630,6 +646,103 @@ fn validate_array_schema(value: &Value, schema: &Map<String, Value>) -> Option<V
                     "Array has {} items, maximum is {}",
                     arr.len(),
                     max
+                )));
+            }
+        }
+    }
+
+    if issues.is_empty() {
+        None
+    } else {
+        Some(issues)
+    }
+}
+
+/// Validates a number against numeric schema constraints (minimum, maximum).
+fn validate_number_schema(value: &Value, schema: &Map<String, Value>) -> Option<Vec<ValidationIssue>> {
+    let num = value.as_f64()?;
+    let mut issues = Vec::new();
+
+    // Check minimum
+    if let Some(Value::Number(min)) = schema.get("minimum") {
+        if let Some(min_val) = min.as_f64() {
+            if num < min_val {
+                issues.push(ValidationIssue::new(format!(
+                    "Value {} is less than minimum {}",
+                    num, min_val
+                )));
+            }
+        }
+    }
+
+    // Check maximum
+    if let Some(Value::Number(max)) = schema.get("maximum") {
+        if let Some(max_val) = max.as_f64() {
+            if num > max_val {
+                issues.push(ValidationIssue::new(format!(
+                    "Value {} is greater than maximum {}",
+                    num, max_val
+                )));
+            }
+        }
+    }
+
+    // Check exclusiveMinimum
+    if let Some(Value::Number(min)) = schema.get("exclusiveMinimum") {
+        if let Some(min_val) = min.as_f64() {
+            if num <= min_val {
+                issues.push(ValidationIssue::new(format!(
+                    "Value {} must be greater than {}",
+                    num, min_val
+                )));
+            }
+        }
+    }
+
+    // Check exclusiveMaximum
+    if let Some(Value::Number(max)) = schema.get("exclusiveMaximum") {
+        if let Some(max_val) = max.as_f64() {
+            if num >= max_val {
+                issues.push(ValidationIssue::new(format!(
+                    "Value {} must be less than {}",
+                    num, max_val
+                )));
+            }
+        }
+    }
+
+    if issues.is_empty() {
+        None
+    } else {
+        Some(issues)
+    }
+}
+
+/// Validates a string against string schema constraints (minLength, maxLength).
+fn validate_string_schema(value: &Value, schema: &Map<String, Value>) -> Option<Vec<ValidationIssue>> {
+    let s = value.as_str()?;
+    let len = s.chars().count();
+    let mut issues = Vec::new();
+
+    // Check minLength
+    if let Some(Value::Number(min)) = schema.get("minLength") {
+        if let Some(min_val) = min.as_u64() {
+            if (len as u64) < min_val {
+                issues.push(ValidationIssue::new(format!(
+                    "String length {} is less than minimum {}",
+                    len, min_val
+                )));
+            }
+        }
+    }
+
+    // Check maxLength
+    if let Some(Value::Number(max)) = schema.get("maxLength") {
+        if let Some(max_val) = max.as_u64() {
+            if (len as u64) > max_val {
+                issues.push(ValidationIssue::new(format!(
+                    "String length {} is greater than maximum {}",
+                    len, max_val
                 )));
             }
         }

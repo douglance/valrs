@@ -1,0 +1,394 @@
+---
+title: API Reference
+description: Complete API documentation for valrs
+---
+
+# API Reference
+
+This section provides complete documentation for all valrs exports.
+
+## Initialization
+
+### init()
+
+Initialize the WebAssembly module. Must be called before using any validation functions.
+
+```typescript
+import { init } from 'valrs';
+
+await init();
+```
+
+**Returns:** `Promise<void>`
+
+**Note:** In Node.js, this uses a JavaScript fallback and returns immediately. In browsers, the WASM binary is loaded asynchronously.
+
+---
+
+### isInitialized()
+
+Check if the WASM module has been initialized.
+
+```typescript
+import { isInitialized } from 'valrs';
+
+if (isInitialized()) {
+  // Safe to use validation
+}
+```
+
+**Returns:** `boolean`
+
+---
+
+## Primitive Schemas
+
+### StringSchema
+
+Validates string values.
+
+```typescript
+import { StringSchema } from 'valrs';
+
+StringSchema['~standard'].validate('hello');
+// { value: 'hello' }
+
+StringSchema['~standard'].validate(123);
+// { issues: [{ message: 'Expected string' }] }
+```
+
+**Input Type:** `unknown`
+**Output Type:** `string`
+
+---
+
+### NumberSchema
+
+Validates IEEE 754 double-precision floating-point numbers.
+
+```typescript
+import { NumberSchema } from 'valrs';
+
+NumberSchema['~standard'].validate(3.14);
+// { value: 3.14 }
+```
+
+**Input Type:** `unknown`
+**Output Type:** `number`
+
+---
+
+### BooleanSchema
+
+Validates boolean values (`true` or `false`).
+
+```typescript
+import { BooleanSchema } from 'valrs';
+
+BooleanSchema['~standard'].validate(true);
+// { value: true }
+```
+
+**Input Type:** `unknown`
+**Output Type:** `boolean`
+
+---
+
+### Int32Schema
+
+Validates 32-bit signed integers (-2,147,483,648 to 2,147,483,647).
+
+```typescript
+import { Int32Schema } from 'valrs';
+
+Int32Schema['~standard'].validate(42);
+// { value: 42 }
+```
+
+**Input Type:** `unknown`
+**Output Type:** `number`
+
+---
+
+### Int64Schema
+
+Validates 64-bit signed integers.
+
+**Input Type:** `unknown`
+**Output Type:** `number`
+
+---
+
+### Uint32Schema
+
+Validates 32-bit unsigned integers (0 to 4,294,967,295).
+
+**Input Type:** `unknown`
+**Output Type:** `number`
+
+---
+
+### Uint64Schema
+
+Validates 64-bit unsigned integers.
+
+**Input Type:** `unknown`
+**Output Type:** `number`
+
+---
+
+### Float32Schema
+
+Validates 32-bit floating-point numbers.
+
+**Input Type:** `unknown`
+**Output Type:** `number`
+
+---
+
+### Float64Schema
+
+Validates 64-bit floating-point numbers (same as `NumberSchema`).
+
+**Input Type:** `unknown`
+**Output Type:** `number`
+
+---
+
+### IntegerSchema
+
+Alias for `Int32Schema`.
+
+---
+
+### DoubleSchema
+
+Alias for `Float64Schema`.
+
+---
+
+## Type Guards
+
+### isValidationSuccess()
+
+Type guard to check if a validation result is successful.
+
+```typescript
+import { isValidationSuccess } from 'valrs';
+
+const result = StringSchema['~standard'].validate(value);
+
+if (isValidationSuccess(result)) {
+  // result.value is typed as string
+  console.log(result.value);
+}
+```
+
+**Parameters:**
+- `result: ValidationResult<T>` - The validation result to check
+
+**Returns:** `result is { value: T }`
+
+---
+
+### isValidationFailure()
+
+Type guard to check if a validation result is a failure.
+
+```typescript
+import { isValidationFailure } from 'valrs';
+
+const result = StringSchema['~standard'].validate(value);
+
+if (isValidationFailure(result)) {
+  // result.issues is typed as ValidationIssue[]
+  console.log(result.issues);
+}
+```
+
+**Parameters:**
+- `result: ValidationResult<T>` - The validation result to check
+
+**Returns:** `result is { issues: ValidationIssue[] }`
+
+---
+
+## Schema Factories
+
+### createSchema()
+
+Create a basic schema with custom validation logic.
+
+```typescript
+import { createSchema } from 'valrs';
+
+const PositiveNumber = createSchema<number>((value) => {
+  if (typeof value !== 'number' || value <= 0) {
+    return { issues: [{ message: 'Expected positive number' }] };
+  }
+  return { value };
+});
+```
+
+**Type Parameters:**
+- `Input` - The expected input type (default: `unknown`)
+- `Output` - The validated output type (default: same as `Input`)
+
+**Parameters:**
+- `validateFn: (value: unknown) => ValidationResult<Output>` - The validation function
+
+**Returns:** `StandardSchemaV1<Input, Output>`
+
+---
+
+### createSchemaWithJsonSchema()
+
+Create a schema with JSON Schema generation support.
+
+```typescript
+import { createSchemaWithJsonSchema } from 'valrs';
+
+const EmailSchema = createSchemaWithJsonSchema<string>(
+  (value) => {
+    if (typeof value !== 'string') {
+      return { issues: [{ message: 'Expected string' }] };
+    }
+    return { value };
+  },
+  (options) => ({
+    type: 'string',
+    format: 'email',
+  })
+);
+```
+
+**Type Parameters:**
+- `Input` - The expected input type
+- `Output` - The validated output type (default: same as `Input`)
+
+**Parameters:**
+- `validateFn: (value: unknown) => ValidationResult<Output>` - The validation function
+- `jsonSchemaFn: (options: JsonSchemaOptions) => Record<string, unknown>` - The JSON Schema generator
+
+**Returns:** `StandardJSONSchemaV1<Input, Output>`
+
+---
+
+### createSchemaWithSeparateJsonSchemas()
+
+Create a schema with separate input and output JSON Schema generators.
+
+```typescript
+import { createSchemaWithSeparateJsonSchemas } from 'valrs';
+
+const DateSchema = createSchemaWithSeparateJsonSchemas<string, Date>(
+  (value) => { /* validation */ },
+  (options) => ({ type: 'string', format: 'date-time' }),  // input schema
+  (options) => ({ type: 'object' })  // output schema
+);
+```
+
+**Parameters:**
+- `validateFn` - The validation function
+- `inputSchemaFn` - JSON Schema generator for input type
+- `outputSchemaFn` - JSON Schema generator for output type
+
+**Returns:** `StandardJSONSchemaV1<Input, Output>`
+
+---
+
+## Result Helpers
+
+### success()
+
+Create a successful validation result.
+
+```typescript
+import { success } from 'valrs';
+
+return success(42);
+// { value: 42 }
+```
+
+**Parameters:**
+- `value: T` - The validated value
+
+**Returns:** `{ value: T }`
+
+---
+
+### failure()
+
+Create a failed validation result with multiple issues.
+
+```typescript
+import { failure } from 'valrs';
+
+return failure([
+  { message: 'Field required', path: ['name'] },
+  { message: 'Invalid format', path: ['email'] },
+]);
+```
+
+**Parameters:**
+- `issues: ValidationIssue[]` - Array of validation issues
+
+**Returns:** `{ issues: ValidationIssue[] }`
+
+---
+
+### fail()
+
+Create a failed validation result with a single issue.
+
+```typescript
+import { fail } from 'valrs';
+
+return fail('Invalid input');
+// { issues: [{ message: 'Invalid input' }] }
+
+return fail('Invalid item', ['items', 0]);
+// { issues: [{ message: 'Invalid item', path: ['items', 0] }] }
+```
+
+**Parameters:**
+- `message: string` - The error message
+- `path?: (string | number)[]` - Optional path to the invalid value
+
+**Returns:** `{ issues: ValidationIssue[] }`
+
+---
+
+## Constants
+
+### VENDOR
+
+The vendor name for valrs schemas.
+
+```typescript
+import { VENDOR } from 'valrs';
+
+console.log(VENDOR); // 'valrs'
+```
+
+**Value:** `'valrs'`
+
+---
+
+### VERSION
+
+The Standard Schema version implemented by valrs.
+
+```typescript
+import { VERSION } from 'valrs';
+
+console.log(VERSION); // 1
+```
+
+**Value:** `1`
+
+---
+
+## Types
+
+See [Types Reference](/docs/api/types) for complete type definitions.

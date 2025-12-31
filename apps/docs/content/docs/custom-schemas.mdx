@@ -1,0 +1,268 @@
+---
+title: Custom Schemas
+description: Create your own validators with full type safety
+---
+
+# Custom Schemas
+
+While valrs provides built-in primitive validators, you'll often need to validate complex data structures or add custom constraints. valrs provides factory functions to create type-safe custom schemas.
+
+## Basic Custom Schema
+
+Use `createSchema` to create a validator with custom logic:
+
+```typescript
+import { createSchema, isValidationSuccess } from 'valrs';
+
+const PositiveNumber = createSchema<number>((value) => {
+  if (typeof value !== 'number') {
+    return { issues: [{ message: 'Expected a number' }] };
+  }
+  if (value <= 0) {
+    return { issues: [{ message: 'Must be positive' }] };
+  }
+  return { value };
+});
+
+// Use it like any other schema
+const result = PositiveNumber['~standard'].validate(42);
+if (isValidationSuccess(result)) {
+  console.log(result.value); // 42 (typed as number)
+}
+```
+
+### Input vs Output Types
+
+When your validator transforms the input, specify both types:
+
+```typescript
+const StringToNumber = createSchema<string, number>((value) => {
+  if (typeof value !== 'string') {
+    return { issues: [{ message: 'Expected a string' }] };
+  }
+
+  const parsed = parseFloat(value);
+  if (isNaN(parsed)) {
+    return { issues: [{ message: 'Invalid number format' }] };
+  }
+
+  return { value: parsed };
+});
+
+const result = StringToNumber['~standard'].validate('3.14');
+if (isValidationSuccess(result)) {
+  console.log(result.value); // 3.14 (typed as number)
+}
+```
+
+## Schema with JSON Schema Support
+
+Use `createSchemaWithJsonSchema` to add JSON Schema generation:
+
+```typescript
+import { createSchemaWithJsonSchema } from 'valrs';
+
+const EmailSchema = createSchemaWithJsonSchema<string>(
+  // Validation function
+  (value) => {
+    if (typeof value !== 'string') {
+      return { issues: [{ message: 'Expected string' }] };
+    }
+    if (!value.includes('@') || !value.includes('.')) {
+      return { issues: [{ message: 'Invalid email format' }] };
+    }
+    return { value };
+  },
+  // JSON Schema generator
+  (options) => ({
+    type: 'string',
+    format: 'email',
+  })
+);
+
+// Use for validation
+EmailSchema['~standard'].validate('user@example.com');
+
+// Generate JSON Schema
+const jsonSchema = EmailSchema['~standard'].jsonSchema.input({
+  target: 'draft-2020-12'
+});
+// { type: 'string', format: 'email' }
+```
+
+### Separate Input/Output JSON Schemas
+
+When input and output types differ, provide separate schema generators:
+
+```typescript
+import { createSchemaWithSeparateJsonSchemas } from 'valrs';
+
+const DateSchema = createSchemaWithSeparateJsonSchemas<string, Date>(
+  // Validation function
+  (value) => {
+    if (typeof value !== 'string') {
+      return { issues: [{ message: 'Expected string' }] };
+    }
+    const date = new Date(value);
+    if (isNaN(date.getTime())) {
+      return { issues: [{ message: 'Invalid date format' }] };
+    }
+    return { value: date };
+  },
+  // Input JSON Schema (what the API accepts)
+  (options) => ({
+    type: 'string',
+    format: 'date-time',
+  }),
+  // Output JSON Schema (what the validator produces)
+  (options) => ({
+    type: 'object',
+    description: 'JavaScript Date object',
+  })
+);
+```
+
+## Result Helpers
+
+valrs provides helper functions to create validation results:
+
+```typescript
+import { success, failure, fail } from 'valrs';
+
+// Create a success result
+success(42);
+// { value: 42 }
+
+// Create a failure with multiple issues
+failure([
+  { message: 'Field is required', path: ['name'] },
+  { message: 'Must be at least 18', path: ['age'] },
+]);
+// { issues: [...] }
+
+// Create a failure with a single issue
+fail('Invalid input');
+// { issues: [{ message: 'Invalid input' }] }
+
+fail('Invalid item', ['items', 0]);
+// { issues: [{ message: 'Invalid item', path: ['items', 0] }] }
+```
+
+## Complex Object Validation
+
+Build validators for complex objects by composing primitives:
+
+```typescript
+import { createSchema, StringSchema, Int32Schema, isValidationSuccess, fail } from 'valrs';
+
+interface User {
+  name: string;
+  age: number;
+  email: string;
+}
+
+const UserSchema = createSchema<unknown, User>((value) => {
+  if (typeof value !== 'object' || value === null) {
+    return fail('Expected an object');
+  }
+
+  const obj = value as Record<string, unknown>;
+  const issues = [];
+
+  // Validate name
+  const nameResult = StringSchema['~standard'].validate(obj.name);
+  if (!isValidationSuccess(nameResult)) {
+    issues.push({ message: 'name: Expected string', path: ['name'] });
+  }
+
+  // Validate age
+  const ageResult = Int32Schema['~standard'].validate(obj.age);
+  if (!isValidationSuccess(ageResult)) {
+    issues.push({ message: 'age: Expected integer', path: ['age'] });
+  }
+
+  // Validate email
+  if (typeof obj.email !== 'string' || !obj.email.includes('@')) {
+    issues.push({ message: 'email: Invalid email', path: ['email'] });
+  }
+
+  if (issues.length > 0) {
+    return { issues };
+  }
+
+  return {
+    value: {
+      name: (nameResult as { value: string }).value,
+      age: (ageResult as { value: number }).value,
+      email: obj.email as string,
+    }
+  };
+});
+```
+
+## Best Practices
+
+### 1. Return Early on Type Errors
+
+```typescript
+const MySchema = createSchema<number>((value) => {
+  // Check type first
+  if (typeof value !== 'number') {
+    return fail('Expected a number');
+  }
+
+  // Now TypeScript knows value is a number
+  if (value < 0) {
+    return fail('Must be non-negative');
+  }
+
+  return { value };
+});
+```
+
+### 2. Use Descriptive Error Messages
+
+```typescript
+// Bad
+return fail('Invalid');
+
+// Good
+return fail('Age must be between 0 and 150');
+```
+
+### 3. Include Paths for Nested Errors
+
+```typescript
+// For nested validation errors, include the path
+return {
+  issues: [
+    { message: 'Required field', path: ['user', 'profile', 'bio'] }
+  ]
+};
+```
+
+### 4. Keep Validation Pure
+
+Validation functions should be pure - no side effects:
+
+```typescript
+// Bad - has side effects
+const BadSchema = createSchema<string>((value) => {
+  console.log('Validating:', value); // Side effect!
+  // ...
+});
+
+// Good - pure function
+const GoodSchema = createSchema<string>((value) => {
+  if (typeof value !== 'string') {
+    return fail('Expected string');
+  }
+  return { value };
+});
+```
+
+## Next Steps
+
+- [JSON Schema](/docs/json-schema) - Export your schemas to JSON Schema
+- [Standard Schema](/docs/standard-schema) - How valrs implements the spec
+- [API Reference](/docs/api) - Complete API documentation

@@ -1,0 +1,13 @@
+{
+  "title": "Documentation",
+  "pages": [
+    "index",
+    "getting-started",
+    "primitives",
+    "custom-schemas",
+    "json-schema",
+    "standard-schema",
+    "---",
+    "api"
+  ]
+}

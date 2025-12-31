@@ -1,0 +1,189 @@
+---
+title: Getting Started
+description: Install and configure valrs in your project
+---
+
+# Getting Started
+
+This guide will help you install valrs and start validating data in minutes.
+
+## Installation
+
+Install valrs using your preferred package manager:
+
+```bash
+npm install valrs
+```
+
+```bash
+pnpm add valrs
+```
+
+```bash
+yarn add valrs
+```
+
+## Basic Usage
+
+### Initialize the WASM Module
+
+Before using any validation, you must initialize the WebAssembly module. This only needs to be done once at application startup:
+
+```typescript
+import { init, isInitialized } from 'valrs';
+
+// Initialize WASM (call once at app startup)
+await init();
+
+// Check if initialization was successful
+console.log(isInitialized()); // true
+```
+
+<Callout type="info">
+  In Node.js, valrs uses a pure JavaScript fallback, so initialization is instant. In browsers, the WASM binary is loaded asynchronously.
+</Callout>
+
+### Validate Values
+
+Use the built-in schemas to validate values:
+
+```typescript
+import { StringSchema, Int32Schema, BooleanSchema, isValidationSuccess } from 'valrs';
+
+// Validate a string
+const stringResult = StringSchema['~standard'].validate('hello');
+if (isValidationSuccess(stringResult)) {
+  console.log(stringResult.value); // 'hello'
+}
+
+// Validate an integer
+const intResult = Int32Schema['~standard'].validate(42);
+if (isValidationSuccess(intResult)) {
+  console.log(intResult.value); // 42
+}
+
+// Validate a boolean
+const boolResult = BooleanSchema['~standard'].validate(true);
+if (isValidationSuccess(boolResult)) {
+  console.log(boolResult.value); // true
+}
+```
+
+### Handle Validation Errors
+
+When validation fails, the result contains an array of issues:
+
+```typescript
+import { Int32Schema, isValidationFailure } from 'valrs';
+
+const result = Int32Schema['~standard'].validate('not a number');
+
+if (isValidationFailure(result)) {
+  for (const issue of result.issues) {
+    console.log(issue.message); // 'Expected i32'
+    console.log(issue.path);    // undefined (root-level error)
+  }
+}
+```
+
+## TypeScript Integration
+
+valrs provides full type inference. The validated value is automatically typed:
+
+```typescript
+import { StringSchema, isValidationSuccess } from 'valrs';
+
+const result = StringSchema['~standard'].validate(unknownValue);
+
+if (isValidationSuccess(result)) {
+  // result.value is typed as `string`
+  const length = result.value.length; // TypeScript knows this is valid
+}
+```
+
+You can also use the type inference utilities:
+
+```typescript
+import type { InferInput, InferOutput } from 'valrs';
+import { StringSchema } from 'valrs';
+
+type StringInput = InferInput<typeof StringSchema>;   // string
+type StringOutput = InferOutput<typeof StringSchema>; // string
+```
+
+## Framework Integration
+
+### React
+
+```typescript
+import { useState, useEffect } from 'react';
+import { init, StringSchema, isValidationSuccess } from 'valrs';
+
+function App() {
+  const [ready, setReady] = useState(false);
+  const [name, setName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    init().then(() => setReady(true));
+  }, []);
+
+  const handleSubmit = () => {
+    const result = StringSchema['~standard'].validate(name);
+    if (isValidationSuccess(result)) {
+      setError(null);
+      // Submit the validated name
+    } else {
+      setError(result.issues[0]?.message ?? 'Invalid input');
+    }
+  };
+
+  if (!ready) return <div>Loading...</div>;
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input value={name} onChange={e => setName(e.target.value)} />
+      {error && <span className="error">{error}</span>}
+      <button type="submit">Submit</button>
+    </form>
+  );
+}
+```
+
+### Next.js
+
+In Next.js, initialize valrs in a client component or API route:
+
+```typescript
+// app/providers.tsx
+'use client';
+
+import { useEffect, useState, createContext, useContext } from 'react';
+import { init } from 'valrs';
+
+const ValrsContext = createContext(false);
+
+export function ValrsProvider({ children }: { children: React.ReactNode }) {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    init().then(() => setReady(true));
+  }, []);
+
+  return (
+    <ValrsContext.Provider value={ready}>
+      {children}
+    </ValrsContext.Provider>
+  );
+}
+
+export function useValrsReady() {
+  return useContext(ValrsContext);
+}
+```
+
+## Next Steps
+
+- [Primitive Types](/docs/primitives) - Learn about all built-in validators
+- [Custom Schemas](/docs/custom-schemas) - Create your own validation logic
+- [JSON Schema](/docs/json-schema) - Export schemas to JSON Schema format

@@ -1,0 +1,264 @@
+---
+title: JSON Schema Generation
+description: Export valrs schemas to JSON Schema format
+---
+
+# JSON Schema Generation
+
+valrs schemas can generate JSON Schema definitions for use with other tools, API documentation, and validation systems.
+
+## Generating JSON Schema
+
+All built-in schemas and custom schemas created with `createSchemaWithJsonSchema` support JSON Schema generation:
+
+```typescript
+import { StringSchema, Int32Schema, BooleanSchema } from 'valrs';
+
+// Generate JSON Schema for a string
+const stringSchema = StringSchema['~standard'].jsonSchema.input({
+  target: 'draft-2020-12'
+});
+console.log(stringSchema);
+// { type: 'string' }
+
+// Generate JSON Schema for an integer
+const intSchema = Int32Schema['~standard'].jsonSchema.input({
+  target: 'draft-2020-12'
+});
+console.log(intSchema);
+// { type: 'integer', minimum: -2147483648, maximum: 2147483647 }
+
+// Generate JSON Schema for a boolean
+const boolSchema = BooleanSchema['~standard'].jsonSchema.input({
+  target: 'draft-2020-12'
+});
+console.log(boolSchema);
+// { type: 'boolean' }
+```
+
+## Supported Targets
+
+valrs supports multiple JSON Schema versions and formats:
+
+### Draft 2020-12
+
+The latest JSON Schema specification:
+
+```typescript
+const schema = StringSchema['~standard'].jsonSchema.input({
+  target: 'draft-2020-12'
+});
+```
+
+### Draft 07
+
+Widely supported older version:
+
+```typescript
+const schema = StringSchema['~standard'].jsonSchema.input({
+  target: 'draft-07'
+});
+```
+
+### OpenAPI 3.0
+
+For API documentation with OpenAPI/Swagger:
+
+```typescript
+const schema = StringSchema['~standard'].jsonSchema.input({
+  target: 'openapi-3.0'
+});
+```
+
+## Input vs Output Schemas
+
+For schemas that transform values (different input and output types), you can generate both input and output JSON Schemas:
+
+```typescript
+import { createSchemaWithSeparateJsonSchemas } from 'valrs';
+
+const DateSchema = createSchemaWithSeparateJsonSchemas<string, Date>(
+  (value) => {
+    if (typeof value !== 'string') {
+      return { issues: [{ message: 'Expected string' }] };
+    }
+    return { value: new Date(value) };
+  },
+  // Input schema - what your API accepts
+  (options) => ({
+    type: 'string',
+    format: 'date-time',
+    description: 'ISO 8601 date string',
+  }),
+  // Output schema - what the validator produces
+  (options) => ({
+    type: 'object',
+    description: 'JavaScript Date object',
+  })
+);
+
+// Generate input schema (for request validation)
+const inputSchema = DateSchema['~standard'].jsonSchema.input({
+  target: 'openapi-3.0'
+});
+
+// Generate output schema (for response documentation)
+const outputSchema = DateSchema['~standard'].jsonSchema.output({
+  target: 'openapi-3.0'
+});
+```
+
+## Custom Schema JSON Generation
+
+When creating custom schemas, define how they map to JSON Schema:
+
+```typescript
+import { createSchemaWithJsonSchema } from 'valrs';
+
+const EmailSchema = createSchemaWithJsonSchema<string>(
+  (value) => {
+    if (typeof value !== 'string') {
+      return { issues: [{ message: 'Expected string' }] };
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(value)) {
+      return { issues: [{ message: 'Invalid email format' }] };
+    }
+    return { value };
+  },
+  (options) => ({
+    type: 'string',
+    format: 'email',
+    pattern: '^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$',
+    description: 'Email address',
+    examples: ['user@example.com'],
+  })
+);
+
+const schema = EmailSchema['~standard'].jsonSchema.input({
+  target: 'draft-2020-12'
+});
+// {
+//   type: 'string',
+//   format: 'email',
+//   pattern: '^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$',
+//   description: 'Email address',
+//   examples: ['user@example.com']
+// }
+```
+
+## Target-Specific Generation
+
+You can customize output based on the target format:
+
+```typescript
+const UrlSchema = createSchemaWithJsonSchema<string>(
+  (value) => {
+    if (typeof value !== 'string') {
+      return { issues: [{ message: 'Expected string' }] };
+    }
+    try {
+      new URL(value);
+      return { value };
+    } catch {
+      return { issues: [{ message: 'Invalid URL' }] };
+    }
+  },
+  (options) => {
+    const base = {
+      type: 'string' as const,
+      format: 'uri',
+    };
+
+    // Add features based on target
+    switch (options.target) {
+      case 'draft-2020-12':
+        return {
+          ...base,
+          $comment: 'Must be a valid URL',
+        };
+      case 'openapi-3.0':
+        return {
+          ...base,
+          description: 'A valid URL',
+          example: 'https://example.com',
+        };
+      default:
+        return base;
+    }
+  }
+);
+```
+
+## Use Cases
+
+### OpenAPI Documentation
+
+Generate schemas for your API documentation:
+
+```typescript
+import { StringSchema, Int32Schema } from 'valrs';
+
+const openApiSpec = {
+  openapi: '3.0.0',
+  paths: {
+    '/users': {
+      post: {
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  name: StringSchema['~standard'].jsonSchema.input({
+                    target: 'openapi-3.0'
+                  }),
+                  age: Int32Schema['~standard'].jsonSchema.input({
+                    target: 'openapi-3.0'
+                  }),
+                },
+                required: ['name', 'age'],
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+};
+```
+
+### Form Validation Libraries
+
+Some form libraries accept JSON Schema for validation:
+
+```typescript
+import { StringSchema } from 'valrs';
+
+// Use with react-jsonschema-form or similar
+const formSchema = {
+  type: 'object',
+  properties: {
+    email: EmailSchema['~standard'].jsonSchema.input({
+      target: 'draft-07'
+    }),
+  },
+};
+```
+
+### Database Schema Generation
+
+Generate schemas for database column definitions:
+
+```typescript
+const columnSchemas = {
+  name: StringSchema['~standard'].jsonSchema.input({ target: 'draft-07' }),
+  age: Int32Schema['~standard'].jsonSchema.input({ target: 'draft-07' }),
+  active: BooleanSchema['~standard'].jsonSchema.input({ target: 'draft-07' }),
+};
+```
+
+## Next Steps
+
+- [Standard Schema](/docs/standard-schema) - How valrs implements the spec
+- [API Reference](/docs/api) - Complete API documentation

@@ -1,0 +1,71 @@
+---
+title: Introduction
+description: High-performance schema validation powered by Rust and WebAssembly
+---
+
+# valrs
+
+**valrs** is a schema validation library that implements the [Standard Schema](https://standardschema.dev/) specification. It's written in Rust and compiled to WebAssembly for near-native performance in browsers, with a pure JavaScript fallback for Node.js and other environments.
+
+## Why valrs?
+
+### Performance
+
+valrs is built in Rust and compiled to WebAssembly, delivering validation speeds competitive with the fastest JavaScript validators:
+
+| Library | ops/sec | Relative |
+|---------|---------|----------|
+| TypeBox | 22.75M | 1.04x |
+| **valrs** | 21.84M | baseline |
+| ArkType | 7.73M | 0.35x |
+| Valibot | 2.11M | 0.10x |
+| Zod | 1.45M | 0.07x |
+
+### Portability
+
+- **Browsers**: Uses WebAssembly for maximum performance
+- **Node.js**: Pure JavaScript fallback works everywhere
+- **Edge**: Compatible with Cloudflare Workers and other edge runtimes
+
+### Standards Compliance
+
+valrs implements the [Standard Schema](https://standardschema.dev/) specification v1, enabling interoperability with any tool that supports the standard. Use valrs schemas with form libraries, API frameworks, and validation utilities that understand Standard Schema.
+
+### Type Safety
+
+Full TypeScript support with type inference. Define your schema once and get compile-time type checking throughout your application.
+
+## Features
+
+- **Primitive validators** - String, number, boolean, integers, and floats
+- **Custom schemas** - Build your own validators with full type safety
+- **JSON Schema generation** - Export to Draft 2020-12, Draft 07, or OpenAPI 3.0
+- **Zero dependencies** - Minimal footprint for your bundle
+
+## Quick Example
+
+```typescript
+import { init, StringSchema, Int32Schema, isValidationSuccess } from 'valrs';
+
+// Initialize WASM (required once before validation)
+await init();
+
+// Validate a string
+const result = StringSchema['~standard'].validate('hello');
+if (isValidationSuccess(result)) {
+  console.log(result.value); // 'hello' (typed as string)
+}
+
+// Handle validation errors
+const invalid = Int32Schema['~standard'].validate('not a number');
+if (!isValidationSuccess(invalid)) {
+  console.log(invalid.issues); // [{ message: 'Expected i32' }]
+}
+```
+
+## Next Steps
+
+- [Getting Started](/docs/getting-started) - Installation and setup
+- [Primitive Types](/docs/primitives) - Built-in validators
+- [Custom Schemas](/docs/custom-schemas) - Build your own validators
+- [API Reference](/docs/api) - Complete API documentation
