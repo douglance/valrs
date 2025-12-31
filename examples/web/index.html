@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Standard Schema RS - WASM Demo</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #0d1117;
+            color: #c9d1d9;
+        }
+        h1 {
+            color: #58a6ff;
+            border-bottom: 1px solid #30363d;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #8b949e;
+            margin-top: 30px;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .panel {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 16px;
+        }
+        .panel h3 {
+            margin-top: 0;
+            color: #58a6ff;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+            padding: 12px;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            background: #0d1117;
+            color: #c9d1d9;
+            resize: vertical;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #58a6ff;
+        }
+        button {
+            background: #238636;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px 5px 5px 0;
+        }
+        button:hover {
+            background: #2ea043;
+        }
+        button.secondary {
+            background: #21262d;
+            border: 1px solid #30363d;
+        }
+        button.secondary:hover {
+            background: #30363d;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 300px;
+            overflow: auto;
+        }
+        .result.success {
+            background: #1b4332;
+            border: 1px solid #238636;
+            color: #3fb950;
+        }
+        .result.error {
+            background: #3d1f1f;
+            border: 1px solid #f85149;
+            color: #f85149;
+        }
+        .result.info {
+            background: #1f2937;
+            border: 1px solid #30363d;
+            color: #8b949e;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        .status.loading {
+            background: #1f2937;
+            color: #8b949e;
+        }
+        .status.ready {
+            background: #1b4332;
+            color: #3fb950;
+        }
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .test-btn {
+            padding: 8px 12px;
+            font-size: 12px;
+            text-align: left;
+        }
+        .examples {
+            margin-top: 10px;
+        }
+        .examples button {
+            font-size: 12px;
+            padding: 6px 12px;
+        }
+        code {
+            background: #21262d;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        .test-result {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            margin: 4px 0;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .test-result.pass {
+            background: #1b4332;
+        }
+        .test-result.fail {
+            background: #3d1f1f;
+        }
+        .test-result .icon {
+            margin-right: 8px;
+            font-size: 16px;
+        }
+        #test-results {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .schema-target {
+            margin: 10px 0;
+        }
+        select {
+            background: #21262d;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Standard Schema RS <span class="status loading" id="status">Loading WASM...</span></h1>
+    <p>Rust-powered validation with WASM. Test the Standard Schema implementation in your browser.</p>
+
+    <div class="container">
+        <div class="panel">
+            <h3>Primitive Type Validation</h3>
+            <p>Select a type and enter a JSON value to validate:</p>
+
+            <div class="schema-target">
+                <label>Type: </label>
+                <select id="primitive-type">
+                    <option value="string">String</option>
+                    <option value="i32">i32 (integer)</option>
+                    <option value="i64">i64 (big integer)</option>
+                    <option value="u32">u32 (unsigned)</option>
+                    <option value="f64">f64 (float)</option>
+                    <option value="bool">bool</option>
+                    <option value="null">null</option>
+                </select>
+            </div>
+
+            <textarea id="primitive-input" placeholder="Enter a JSON value...">"hello world"</textarea>
+
+            <div class="examples">
+                <button class="secondary" onclick="setPrimitiveExample('string', '\"hello\"')">String</button>
+                <button class="secondary" onclick="setPrimitiveExample('i32', '42')">Integer</button>
+                <button class="secondary" onclick="setPrimitiveExample('f64', '3.14159')">Float</button>
+                <button class="secondary" onclick="setPrimitiveExample('bool', 'true')">Bool</button>
+                <button class="secondary" onclick="setPrimitiveExample('null', 'null')">Null</button>
+                <button class="secondary" onclick="setPrimitiveExample('i32', '\"not a number\"')">Type Error</button>
+            </div>
+
+            <button onclick="validatePrimitive()">Validate</button>
+            <button class="secondary" onclick="getPrimitiveSchema()">Get JSON Schema</button>
+
+            <div id="primitive-result" class="result info">Results will appear here...</div>
+        </div>
+
+        <div class="panel">
+            <h3>Schema Registry</h3>
+            <p>Register custom schemas and validate data against them:</p>
+
+            <textarea id="schema-input" placeholder="Enter a JSON Schema...">{
+  "type": "object",
+  "properties": {
+    "name": { "type": "string" },
+    "email": { "type": "string" },
+    "age": { "type": "integer" }
+  },
+  "required": ["name", "email", "age"]
+}</textarea>
+
+            <div style="margin: 10px 0;">
+                <label>Schema Name: </label>
+                <input type="text" id="schema-name" value="User" style="background: #21262d; color: #c9d1d9; border: 1px solid #30363d; padding: 8px; border-radius: 4px;">
+            </div>
+
+            <button onclick="registerSchema()">Register Schema</button>
+            <button class="secondary" onclick="listSchemas()">List Schemas</button>
+
+            <div id="schema-result" class="result info">Register a schema to get started...</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="panel">
+            <h3>Validate Against Registered Schema</h3>
+
+            <div style="margin: 10px 0;">
+                <label>Schema: </label>
+                <select id="validate-schema">
+                    <option value="">-- Register a schema first --</option>
+                </select>
+            </div>
+
+            <textarea id="validate-input" placeholder="Enter JSON data to validate...">{
+  "name": "Alice",
+  "email": "alice@example.com",
+  "age": 30
+}</textarea>
+
+            <div class="examples">
+                <button class="secondary" onclick="setValidateExample('valid')">Valid User</button>
+                <button class="secondary" onclick="setValidateExample('missing')">Missing Field</button>
+                <button class="secondary" onclick="setValidateExample('wrong-type')">Wrong Type</button>
+            </div>
+
+            <button onclick="validateData()">Validate</button>
+
+            <div id="validate-result" class="result info">Select a schema and enter data to validate...</div>
+        </div>
+
+        <div class="panel">
+            <h3>JSON Schema Generation</h3>
+            <p>Get JSON Schema for registered types:</p>
+
+            <div class="schema-target">
+                <label>Target: </label>
+                <select id="json-schema-target">
+                    <option value="draft-2020-12">Draft 2020-12</option>
+                    <option value="draft-07">Draft 07</option>
+                    <option value="openapi-3.0">OpenAPI 3.0</option>
+                </select>
+            </div>
+
+            <div class="schema-target">
+                <label>Schema: </label>
+                <select id="json-schema-name">
+                    <option value="">-- Register a schema first --</option>
+                </select>
+            </div>
+
+            <button onclick="getJsonSchema()">Generate JSON Schema</button>
+
+            <div id="json-schema-result" class="result info">Select a schema to generate JSON Schema...</div>
+        </div>
+    </div>
+
+    <div class="panel" style="margin-top: 20px;">
+        <h3>Run All Tests</h3>
+        <p>Comprehensive test suite running in your browser:</p>
+
+        <button onclick="runAllTests()">Run All Tests</button>
+        <button class="secondary" onclick="clearTests()">Clear Results</button>
+
+        <div id="test-summary" style="margin: 15px 0; font-size: 14px;"></div>
+        <div id="test-results"></div>
+    </div>
+
+    <script type="module">
+        import init, * as wasm from '../../pkg/standard_schema_wasm.js';
+
+        let wasmReady = false;
+        let registry = null;
+
+        // Make wasm available globally
+        window.wasm = wasm;
+
+        async function initialize() {
+            try {
+                await init();
+                registry = new wasm.SchemaRegistry();
+                window.registry = registry;
+                wasmReady = true;
+
+                document.getElementById('status').textContent = 'Ready';
+                document.getElementById('status').className = 'status ready';
+
+                console.log('WASM initialized!');
+                console.log('Vendor:', wasm.vendor());
+                console.log('Version:', wasm.version());
+            } catch (e) {
+                document.getElementById('status').textContent = 'Error: ' + e.message;
+                console.error('WASM initialization failed:', e);
+            }
+        }
+
+        window.setPrimitiveExample = function(type, value) {
+            document.getElementById('primitive-type').value = type;
+            document.getElementById('primitive-input').value = value;
+        };
+
+        window.setValidateExample = function(example) {
+            const examples = {
+                'valid': '{\n  "name": "Alice",\n  "email": "alice@example.com",\n  "age": 30\n}',
+                'missing': '{\n  "name": "Bob",\n  "age": 25\n}',
+                'wrong-type': '{\n  "name": "Charlie",\n  "email": "charlie@example.com",\n  "age": "thirty"\n}'
+            };
+            document.getElementById('validate-input').value = examples[example] || '';
+        };
+
+        window.validatePrimitive = function() {
+            if (!wasmReady) return alert('WASM not ready');
+
+            const type = document.getElementById('primitive-type').value;
+            const input = document.getElementById('primitive-input').value;
+            const resultDiv = document.getElementById('primitive-result');
+
+            try {
+                const value = JSON.parse(input);
+                let result;
+
+                switch (type) {
+                    case 'string': result = wasm.validate_string(value); break;
+                    case 'i32': result = wasm.validate_i32(value); break;
+                    case 'i64': result = wasm.validate_i64(value); break;
+                    case 'u32': result = wasm.validate_u32(value); break;
+                    case 'f64': result = wasm.validate_f64(value); break;
+                    case 'bool': result = wasm.validate_bool(value); break;
+                    case 'null': result = wasm.validate_null(value); break;
+                    default: throw new Error('Unknown type');
+                }
+
+                if (result.issues) {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = 'Validation Failed:\n' + JSON.stringify(result.issues, null, 2);
+                } else {
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = 'Validation Passed!\nValue: ' + JSON.stringify(result.value, null, 2);
+                }
+            } catch (e) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = 'Error: ' + e.message;
+            }
+        };
+
+        window.getPrimitiveSchema = function() {
+            if (!wasmReady) return alert('WASM not ready');
+
+            const type = document.getElementById('primitive-type').value;
+            const resultDiv = document.getElementById('primitive-result');
+
+            try {
+                let schema;
+                const target = 'draft-2020-12';
+
+                switch (type) {
+                    case 'string': schema = wasm.string_json_schema(target); break;
+                    case 'i32': schema = wasm.i32_json_schema(target); break;
+                    case 'i64': schema = wasm.i64_json_schema(target); break;
+                    case 'u32': schema = wasm.u32_json_schema(target); break;
+                    case 'f64': schema = wasm.f64_json_schema(target); break;
+                    case 'bool': schema = wasm.bool_json_schema(target); break;
+                    case 'null': schema = wasm.null_json_schema(target); break;
+                    default: throw new Error('Unknown type');
+                }
+
+                resultDiv.className = 'result success';
+                resultDiv.textContent = 'JSON Schema:\n' + JSON.stringify(schema, null, 2);
+            } catch (e) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = 'Error: ' + e.message;
+            }
+        };
+
+        window.registerSchema = function() {
+            if (!wasmReady) return alert('WASM not ready');
+
+            const name = document.getElementById('schema-name').value;
+            const schemaInput = document.getElementById('schema-input').value;
+            const resultDiv = document.getElementById('schema-result');
+
+            try {
+                const schema = JSON.parse(schemaInput);
+                registry.register(name, schema);
+
+                resultDiv.className = 'result success';
+                resultDiv.textContent = 'Schema "' + name + '" registered successfully!';
+
+                updateSchemaSelects();
+            } catch (e) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = 'Error: ' + e.message;
+            }
+        };
+
+        window.listSchemas = function() {
+            if (!wasmReady) return alert('WASM not ready');
+
+            const resultDiv = document.getElementById('schema-result');
+            const schemas = registry.listSchemas();
+
+            resultDiv.className = 'result info';
+            resultDiv.textContent = 'Registered Schemas:\n' + (schemas.length ? schemas.join('\n') : '(none)');
+        };
+
+        function updateSchemaSelects() {
+            const schemas = registry.listSchemas();
+            const options = schemas.map(s => `<option value="${s}">${s}</option>`).join('');
+            const defaultOption = '<option value="">-- Select a schema --</option>';
+
+            document.getElementById('validate-schema').innerHTML = defaultOption + options;
+            document.getElementById('json-schema-name').innerHTML = defaultOption + options;
+        }
+
+        window.validateData = function() {
+            if (!wasmReady) return alert('WASM not ready');
+
+            const schemaName = document.getElementById('validate-schema').value;
+            const dataInput = document.getElementById('validate-input').value;
+            const resultDiv = document.getElementById('validate-result');
+
+            if (!schemaName) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = 'Please select a schema first';
+                return;
+            }
+
+            try {
+                const data = JSON.parse(dataInput);
+                const result = registry.validate(schemaName, data);
+
+                if (result.issues) {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = 'Validation Failed:\n' + JSON.stringify(result.issues, null, 2);
+                } else {
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = 'Validation Passed!\nValue: ' + JSON.stringify(result.value, null, 2);
+                }
+            } catch (e) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = 'Error: ' + e.message;
+            }
+        };
+
+        window.getJsonSchema = function() {
+            if (!wasmReady) return alert('WASM not ready');
+
+            const schemaName = document.getElementById('json-schema-name').value;
+            const target = document.getElementById('json-schema-target').value;
+            const resultDiv = document.getElementById('json-schema-result');
+
+            if (!schemaName) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = 'Please select a schema first';
+                return;
+            }
+
+            try {
+                const schema = registry.jsonSchema(schemaName, target);
+
+                resultDiv.className = 'result success';
+                resultDiv.textContent = 'JSON Schema (' + target + '):\n' + JSON.stringify(schema, null, 2);
+            } catch (e) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = 'Error: ' + e.message;
+            }
+        };
+
+        window.runAllTests = function() {
+            if (!wasmReady) return alert('WASM not ready');
+
+            const results = [];
+            const resultsDiv = document.getElementById('test-results');
+            const summaryDiv = document.getElementById('test-summary');
+
+            function test(name, fn) {
+                try {
+                    const passed = fn();
+                    results.push({ name, passed, error: null });
+                } catch (e) {
+                    results.push({ name, passed: false, error: e.message });
+                }
+            }
+
+            // Primitive validation tests
+            test('String: valid', () => !wasm.validate_string('hello').issues);
+            test('String: rejects number', () => !!wasm.validate_string(42).issues);
+            test('String: rejects null', () => !!wasm.validate_string(null).issues);
+
+            test('i32: valid', () => !wasm.validate_i32(42).issues);
+            test('i32: rejects string', () => !!wasm.validate_i32('42').issues);
+            test('i32: rejects float', () => !!wasm.validate_i32(3.14).issues);
+
+            test('u32: valid', () => !wasm.validate_u32(42).issues);
+            test('u32: rejects negative', () => !!wasm.validate_u32(-1).issues);
+
+            test('f64: valid', () => !wasm.validate_f64(3.14).issues);
+            test('f64: accepts integer', () => !wasm.validate_f64(42).issues);
+            test('f64: rejects string', () => !!wasm.validate_f64('3.14').issues);
+
+            test('bool: true', () => !wasm.validate_bool(true).issues);
+            test('bool: false', () => !wasm.validate_bool(false).issues);
+            test('bool: rejects 1', () => !!wasm.validate_bool(1).issues);
+            test('bool: rejects "true"', () => !!wasm.validate_bool('true').issues);
+
+            test('null: valid', () => !wasm.validate_null(null).issues);
+            test('null: rejects 0', () => !!wasm.validate_null(0).issues);
+            test('null: rejects ""', () => !!wasm.validate_null('').issues);
+
+            // JSON Schema tests
+            test('String schema has type', () => {
+                const schema = wasm.string_json_schema('draft-2020-12');
+                console.log('String schema:', JSON.stringify(schema, null, 2));
+                return schema.type === 'string';
+            });
+            test('i32 schema has type', () => wasm.i32_json_schema('draft-2020-12').type === 'integer');
+            test('f64 schema has type', () => wasm.f64_json_schema('draft-2020-12').type === 'number');
+            test('bool schema has type', () => wasm.bool_json_schema('draft-2020-12').type === 'boolean');
+            test('null schema has type', () => wasm.null_json_schema('draft-2020-12').type === 'null');
+
+            test('Draft2020 has $schema', () => wasm.string_json_schema('draft-2020-12').$schema?.includes('2020-12'));
+            test('Draft07 has $schema', () => wasm.string_json_schema('draft-07').$schema?.includes('draft-07'));
+            test('OpenAPI has no $schema', () => !wasm.string_json_schema('openapi-3.0').$schema);
+
+            // Registry tests
+            const testRegistry = new wasm.SchemaRegistry();
+
+            test('Registry: register schema', () => {
+                testRegistry.register('TestUser', {
+                    type: 'object',
+                    properties: {
+                        name: { type: 'string' },
+                        age: { type: 'integer' }
+                    },
+                    required: ['name', 'age']
+                });
+                return testRegistry.hasSchema('TestUser');
+            });
+
+            test('Registry: list schemas', () => {
+                return testRegistry.listSchemas().includes('TestUser');
+            });
+
+            test('Registry: validate valid', () => {
+                const result = testRegistry.validate('TestUser', { name: 'Alice', age: 30 });
+                return !result.issues;
+            });
+
+            test('Registry: validate missing field', () => {
+                const result = testRegistry.validate('TestUser', { name: 'Bob' });
+                return result.issues && result.issues.length > 0;
+            });
+
+            test('Registry: validate wrong type', () => {
+                const result = testRegistry.validate('TestUser', { name: 'Charlie', age: 'thirty' });
+                return result.issues && result.issues.length > 0;
+            });
+
+            test('Registry: json_schema', () => {
+                const schema = testRegistry.jsonSchema('TestUser', 'draft-2020-12');
+                return schema.type === 'object' && schema.$schema?.includes('2020-12');
+            });
+
+            test('Registry: unregister', () => {
+                testRegistry.unregister('TestUser');
+                return !testRegistry.hasSchema('TestUser');
+            });
+
+            // Metadata tests
+            test('Vendor is correct', () => wasm.vendor() === 'standard-schema-rs');
+            test('Version is 1', () => wasm.version() === 1);
+
+            // Display results
+            const passed = results.filter(r => r.passed).length;
+            const total = results.length;
+
+            summaryDiv.innerHTML = `<strong>Results: ${passed}/${total} passed</strong> ` +
+                (passed === total ? '<span style="color: #3fb950;">All tests passed!</span>' :
+                                   `<span style="color: #f85149;">${total - passed} failed</span>`);
+
+            resultsDiv.innerHTML = results.map(r => `
+                <div class="test-result ${r.passed ? 'pass' : 'fail'}">
+                    <span class="icon">${r.passed ? '✓' : '✗'}</span>
+                    <span>${r.name}</span>
+                    ${r.error ? `<span style="margin-left: auto; color: #f85149;">${r.error}</span>` : ''}
+                </div>
+            `).join('');
+        };
+
+        window.clearTests = function() {
+            document.getElementById('test-results').innerHTML = '';
+            document.getElementById('test-summary').innerHTML = '';
+        };
+
+        // Initialize on load
+        initialize();
+    </script>
+</body>
+</html>

@@ -1,0 +1,78 @@
+{
+  "name": "@standard-schema/rust",
+  "version": "0.1.0",
+  "description": "Rust-powered Standard Schema implementation with WASM bindings",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./types": {
+      "import": "./dist/types.js",
+      "types": "./dist/types.d.ts"
+    },
+    "./factory": {
+      "import": "./dist/factory.js",
+      "types": "./dist/factory.d.ts"
+    },
+    "./primitives": {
+      "import": "./dist/primitives.js",
+      "types": "./dist/primitives.d.ts"
+    }
+  },
+  "scripts": {
+    "build:wasm": "cd ../../crates/standard-schema-wasm && wasm-pack build --target web --out-dir ../../packages/standard-schema/wasm",
+    "build:ts": "tsc",
+    "build": "npm run build:wasm && npm run build:ts",
+    "build:ts-only": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist wasm"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  },
+  "peerDependencies": {
+    "standard-schema-wasm": "*"
+  },
+  "peerDependenciesMeta": {
+    "standard-schema-wasm": {
+      "optional": true
+    }
+  },
+  "files": [
+    "dist",
+    "wasm",
+    "README.md"
+  ],
+  "keywords": [
+    "standard-schema",
+    "validation",
+    "schema",
+    "wasm",
+    "rust",
+    "typescript",
+    "json-schema"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/standard-schema/standard-schema-rs.git",
+    "directory": "packages/standard-schema"
+  },
+  "bugs": {
+    "url": "https://github.com/standard-schema/standard-schema-rs/issues"
+  },
+  "homepage": "https://github.com/standard-schema/standard-schema-rs#readme",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "sideEffects": false
+}
