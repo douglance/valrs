@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { motion, useReducedMotion, type Variants } from "framer-motion";
 import { glyphs } from "@/components/nf-icon";
+import { ValrsLogo } from "@/components/valrs-logo";
 
 // Animation variants for reusability
 const fadeInUp: Variants = {
@@ -322,6 +323,13 @@ export default function HomePage() {
           animate="visible"
         >
           {/* Logo */}
+          <motion.div
+            className="mb-6 flex justify-center"
+            variants={fadeInUp}
+            transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}
+          >
+            <ValrsLogo size={80} />
+          </motion.div>
           <motion.h1
             className="mb-4 text-6xl font-bold tracking-tight"
             variants={fadeInUp}
