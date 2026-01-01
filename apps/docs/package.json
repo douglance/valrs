@@ -5,12 +5,10 @@
   "scripts": {
     "postinstall": "fumadocs-mdx",
     "dev": "next dev",
-    "build": "next build",
-    "prebuild": "fumadocs-mdx",
-    "build:cf": "opennextjs-cloudflare build",
+    "build": "fumadocs-mdx && next build",
     "start": "next start",
     "preview": "wrangler pages dev",
-    "deploy": "wrangler pages deploy",
+    "deploy": "wrangler pages deploy out",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv"
   },
   "dependencies": {
