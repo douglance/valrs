@@ -167,6 +167,14 @@ export class ValSchema<Input = unknown, Output = Input>
   protected _hasTransforms: boolean = false;
 
   /**
+   * Returns whether this schema contains transforms.
+   * Used internally to determine validation path.
+   */
+  hasTransforms(): boolean {
+    return this._hasTransforms;
+  }
+
+  /**
    * Creates a new ValSchema wrapping a validation function.
    *
    * @param validateFn - Function that validates input values
@@ -760,7 +768,7 @@ export class ValArray<S extends ValSchema<unknown, unknown>> extends ValSchema<
     super(validateFn, inputJsonSchemaFn, outputJsonSchemaFn);
     this.element = elementSchema;
     this.validators = validators;
-    this._hasTransforms = elementSchema._hasTransforms || validators.length > 0;
+    this._hasTransforms = elementSchema.hasTransforms() || validators.length > 0;
   }
 
   /**
@@ -872,7 +880,7 @@ export class ValUnion<T extends ReadonlyArray<ValSchema<unknown, unknown>>> exte
 
     super(validateFn, inputJsonSchemaFn, outputJsonSchemaFn);
     this.options = options;
-    this._hasTransforms = options.some(s => s._hasTransforms);
+    this._hasTransforms = options.some(s => s.hasTransforms());
   }
 }
 
@@ -950,7 +958,7 @@ export class ValIntersection<
     super(validateFn, inputJsonSchemaFn, outputJsonSchemaFn);
     this.left = left;
     this.right = right;
-    this._hasTransforms = left._hasTransforms || right._hasTransforms;
+    this._hasTransforms = left.hasTransforms() || right.hasTransforms();
   }
 }
 
@@ -1438,7 +1446,7 @@ export class ValPiped<Input, Middle, Output> extends ValSchema<Input, Output> {
 
     // Cast to sync validate function - async is handled by parseAsync/safeParseAsync
     super(validateFn as ValidateFn<Output>, inputJsonSchemaFn, outputJsonSchemaFn);
-    this._hasTransforms = first._hasTransforms || second._hasTransforms;
+    this._hasTransforms = first.hasTransforms() || second.hasTransforms();
   }
 }
 
