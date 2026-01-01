@@ -237,7 +237,7 @@ function FeatureCard({
         whileHover="hover"
       >
         <motion.div
-          className="mb-3 text-2xl text-rust-400"
+          className="mb-3 text-2xl text-rust-400 font-mono"
           whileHover={{ scale: 1.2, rotate: 5 }}
           transition={{ type: "spring", stiffness: 400, damping: 10 }}
         >
@@ -265,7 +265,7 @@ function TypewriterCode() {
           transition: { duration: 0.2 },
         }}
       >
-        <span className="text-rust-500">{glyphs.terminal}</span>
+        <span className="font-mono text-rust-500">{glyphs.terminal}</span>
         <code className="text-zinc-300">
           <motion.span
             initial={{ opacity: 0 }}
@@ -360,7 +360,7 @@ export default function HomePage() {
                 href="/docs"
                 className="inline-flex items-center gap-2 rounded-lg bg-rust-500 px-8 py-3 font-semibold text-white transition hover:bg-rust-600"
               >
-                <span>{glyphs.rocket}</span>
+                <span className="font-mono">{glyphs.rocket}</span>
                 Get Started
               </Link>
             </motion.div>
@@ -373,7 +373,7 @@ export default function HomePage() {
                 href="/docs/api"
                 className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 px-8 py-3 font-semibold text-white transition hover:border-zinc-500 hover:bg-zinc-800"
               >
-                <span>{glyphs.book}</span>
+                <span className="font-mono">{glyphs.book}</span>
                 API Reference
               </Link>
             </motion.div>

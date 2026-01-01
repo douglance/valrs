@@ -13,8 +13,8 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        mono: ["var(--font-jetbrains-mono)", "monospace"],
-        sans: ["var(--font-jetbrains-mono)", "system-ui", "sans-serif"],
+        sans: ["var(--font-fira-sans)", "system-ui", "sans-serif"],
+        mono: ["var(--font-fira-code)", "ui-monospace", "monospace"],
       },
       colors: {
         // International Orange color palette

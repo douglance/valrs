@@ -113,6 +113,9 @@ export function NFIcon({
   );
 }
 
+// Note: All glyph spans MUST use font-mono class to render correctly
+// Only FiraCode Nerd Font (mono) has the glyphs, not Fira Sans
+
 /**
  * Inline icon for use in text
  * Slightly smaller with proper vertical alignment
@@ -132,6 +135,9 @@ export function NFInline({
     </span>
   );
 }
+
+// Direct glyph usage example:
+// <span className="font-mono text-rust-500">{glyphs.checkCircle}</span>
 
 /**
  * Icon with label for navigation items
