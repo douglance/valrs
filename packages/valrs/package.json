@@ -11,6 +11,18 @@
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     },
+    "./v": {
+      "import": "./dist/v.js",
+      "types": "./dist/v.d.ts"
+    },
+    "./schema": {
+      "import": "./dist/schema.js",
+      "types": "./dist/schema.d.ts"
+    },
+    "./error": {
+      "import": "./dist/error.js",
+      "types": "./dist/error.d.ts"
+    },
     "./types": {
       "import": "./dist/types.js",
       "types": "./dist/types.d.ts"
