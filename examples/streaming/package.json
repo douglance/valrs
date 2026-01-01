@@ -1,0 +1,20 @@
+{
+  "name": "valrs-streaming-example",
+  "version": "1.0.0",
+  "description": "Streaming validation example for valrs",
+  "type": "module",
+  "scripts": {
+    "start": "tsx index.ts",
+    "demo:array": "tsx index.ts array",
+    "demo:ndjson": "tsx index.ts ndjson",
+    "demo:fetch": "tsx index.ts fetch",
+    "generate": "tsx generate-data.ts"
+  },
+  "dependencies": {
+    "valrs": "file:../../packages/valrs"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0"
+  }
+}
