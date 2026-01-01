@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { motion, useReducedMotion, type Variants } from "framer-motion";
+import { glyphs } from "@/components/nf-icon";
 
 // Animation variants for reusability
 const fadeInUp: Variants = {
@@ -47,17 +48,17 @@ const rsEntrance: Variants = {
 const featureCards = [
   {
     title: "Fast",
-    emoji: "\u26A1",
+    icon: glyphs.bolt,
     description: "Rust-powered validation competitive with the fastest JS validators",
   },
   {
     title: "Portable",
-    emoji: "\uD83C\uDF0D",
+    icon: glyphs.rocket,
     description: "Works in browsers (WASM) and Node.js with automatic fallback",
   },
   {
     title: "Standard",
-    emoji: "\uD83D\uDCD0",
+    icon: glyphs.shield,
     description: "Implements Standard Schema v1 for universal interoperability",
   },
 ];
@@ -65,16 +66,16 @@ const featureCards = [
 // Generate random gear config - randomized on each load
 function generateGearConfig() {
   return Array.from({ length: 38 }).map((_, i) => {
-    // Random size with slight bias toward smaller (for depth)
+    // Random size with wide variation - from tiny 10px to massive 2000px
     const sizeRand = Math.random();
-    const size = Math.floor(Math.pow(sizeRand, 0.7) * 1800) + 30; // 30-1830px
+    const size = Math.floor(Math.pow(sizeRand, 0.6) * 1990) + 10; // 10-2000px
 
     // Random position across entire viewport
     const top = Math.random() * 140 - 20; // -20% to 120%
     const left = Math.random() * 140 - 20;
 
     // Opacity based on size with randomness
-    const normalizedSize = (size - 30) / 1800;
+    const normalizedSize = (size - 10) / 1990;
     const baseOpacity = 0.03 + Math.pow(normalizedSize, 2.2) * 0.38;
     const opacityVariation = (Math.random() - 0.5) * 0.08;
     const opacity = Math.max(0.02, Math.min(0.45, baseOpacity + opacityVariation));
@@ -206,12 +207,12 @@ function RotatingGear({
 
 function FeatureCard({
   title,
-  emoji,
+  icon,
   description,
   index,
 }: {
   title: string;
-  emoji: string;
+  icon: string;
   description: string;
   index: number;
 }) {
@@ -236,11 +237,11 @@ function FeatureCard({
         whileHover="hover"
       >
         <motion.div
-          className="mb-3 text-2xl"
+          className="mb-3 text-2xl text-rust-400"
           whileHover={{ scale: 1.2, rotate: 5 }}
           transition={{ type: "spring", stiffness: 400, damping: 10 }}
         >
-          {emoji}
+          {icon}
         </motion.div>
         <h3 className="mb-2 text-lg font-semibold text-rust-400">{title}</h3>
         <p className="text-sm text-zinc-400">{description}</p>
@@ -258,12 +259,13 @@ function TypewriterCode() {
       transition={{ delay: 0.8, duration: 0.5 }}
     >
       <motion.pre
-        className="inline-block rounded-lg bg-zinc-800/50 px-6 py-3 text-left text-sm border border-zinc-700/50"
+        className="inline-flex items-center gap-3 rounded-lg bg-zinc-800/50 px-6 py-3 text-left text-sm border border-zinc-700/50"
         whileHover={{
           borderColor: "rgba(255, 79, 0, 0.3)",
           transition: { duration: 0.2 },
         }}
       >
+        <span className="text-rust-500">{glyphs.terminal}</span>
         <code className="text-zinc-300">
           <motion.span
             initial={{ opacity: 0 }}
@@ -356,8 +358,9 @@ export default function HomePage() {
             >
               <Link
                 href="/docs"
-                className="inline-block rounded-lg bg-rust-500 px-8 py-3 font-semibold text-white transition hover:bg-rust-600"
+                className="inline-flex items-center gap-2 rounded-lg bg-rust-500 px-8 py-3 font-semibold text-white transition hover:bg-rust-600"
               >
+                <span>{glyphs.rocket}</span>
                 Get Started
               </Link>
             </motion.div>
@@ -368,8 +371,9 @@ export default function HomePage() {
             >
               <Link
                 href="/docs/api"
-                className="inline-block rounded-lg border border-zinc-700 px-8 py-3 font-semibold text-white transition hover:border-zinc-500 hover:bg-zinc-800"
+                className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 px-8 py-3 font-semibold text-white transition hover:border-zinc-500 hover:bg-zinc-800"
               >
+                <span>{glyphs.book}</span>
                 API Reference
               </Link>
             </motion.div>
@@ -382,7 +386,7 @@ export default function HomePage() {
             <FeatureCard
               key={card.title}
               title={card.title}
-              emoji={card.emoji}
+              icon={card.icon}
               description={card.description}
               index={index}
             />

@@ -12,19 +12,25 @@ const config: Config = {
   presets: [createPreset()],
   theme: {
     extend: {
+      fontFamily: {
+        mono: ["var(--font-jetbrains-mono)", "monospace"],
+        sans: ["var(--font-jetbrains-mono)", "system-ui", "sans-serif"],
+      },
       colors: {
+        // International Orange color palette
+        // Base: #FF4F00 (International Orange) at 500
         rust: {
-          50: "#fff7ed",
-          100: "#ffedd5",
-          200: "#fed7aa",
-          300: "#fdba74",
-          400: "#ff8533",
-          500: "#FF4F00",  // International Orange
-          600: "#e04500",
-          700: "#c23d00",
-          800: "#9a3412",
-          900: "#7c2d12",
-          950: "#431407",
+          50: "#fff8f5",
+          100: "#ffefe6",
+          200: "#ffdacc",
+          300: "#ffb899",
+          400: "#ff8c4d",
+          500: "#FF4F00",  // International Orange - primary brand color
+          600: "#e64700",
+          700: "#cc3d00",
+          800: "#a63200",
+          900: "#802600",
+          950: "#4d1700",
         },
       },
     },
