@@ -13,49 +13,47 @@ interface ValrsLogoProps {
  * The checkmark is transparent - background shows through
  */
 export function ValrsLogo({ size = 20, className = "" }: ValrsLogoProps) {
-  // Generate Rust-style gear path with 5 spokes
+  // Generate gear path with many teeth all the way around
   const cx = 12;
   const cy = 12;
+  const teeth = 24;
   const outerR = 11;
-  const innerR = 7.5;
-  const spokeWidth = 2.2;
-  const spokes = 5;
+  const innerR = 8.5;
+  const toothDepth = 1.8;
 
-  // Create gear outer edge with notches between spokes
+  // Create gear with teeth all around
   let gearPath = "";
-  for (let i = 0; i < spokes; i++) {
-    const angle = (i / spokes) * Math.PI * 2 - Math.PI / 2;
-    const nextAngle = ((i + 1) / spokes) * Math.PI * 2 - Math.PI / 2;
-    const halfSpoke = spokeWidth / outerR / 2;
+  for (let i = 0; i < teeth; i++) {
+    const angle1 = (i / teeth) * Math.PI * 2;
+    const angle2 = ((i + 0.3) / teeth) * Math.PI * 2;
+    const angle3 = ((i + 0.5) / teeth) * Math.PI * 2;
+    const angle4 = ((i + 0.7) / teeth) * Math.PI * 2;
+    const angle5 = ((i + 1) / teeth) * Math.PI * 2;
 
-    // Spoke outer arc
-    const x1 = cx + Math.cos(angle - halfSpoke) * outerR;
-    const y1 = cy + Math.sin(angle - halfSpoke) * outerR;
-    const x2 = cx + Math.cos(angle + halfSpoke) * outerR;
-    const y2 = cy + Math.sin(angle + halfSpoke) * outerR;
-
-    // Notch (indent between spokes)
-    const notchR = outerR - 2;
-    const midAngle = (angle + nextAngle) / 2;
-    const x3 = cx + Math.cos(angle + halfSpoke + 0.08) * notchR;
-    const y3 = cy + Math.sin(angle + halfSpoke + 0.08) * notchR;
-    const x4 = cx + Math.cos(nextAngle - halfSpoke - 0.08) * notchR;
-    const y4 = cy + Math.sin(nextAngle - halfSpoke - 0.08) * notchR;
+    // Base of tooth
+    const x1 = cx + Math.cos(angle1) * (outerR - toothDepth);
+    const y1 = cy + Math.sin(angle1) * (outerR - toothDepth);
+    // Rise to tooth tip
+    const x2 = cx + Math.cos(angle2) * outerR;
+    const y2 = cy + Math.sin(angle2) * outerR;
+    // Tooth tip flat
+    const x3 = cx + Math.cos(angle4) * outerR;
+    const y3 = cy + Math.sin(angle4) * outerR;
+    // Drop back down
+    const x4 = cx + Math.cos(angle5) * (outerR - toothDepth);
+    const y4 = cy + Math.sin(angle5) * (outerR - toothDepth);
 
     if (i === 0) {
       gearPath += `M ${x1} ${y1} `;
     }
-    gearPath += `A ${outerR} ${outerR} 0 0 1 ${x2} ${y2} `;
-    gearPath += `L ${x3} ${y3} `;
-    gearPath += `A ${notchR} ${notchR} 0 0 1 ${x4} ${y4} `;
-    gearPath += `L ${cx + Math.cos(nextAngle - halfSpoke) * outerR} ${cy + Math.sin(nextAngle - halfSpoke) * outerR} `;
+    gearPath += `L ${x2} ${y2} L ${x3} ${y3} L ${x4} ${y4} `;
   }
   gearPath += "Z";
 
   // Inner circle cutout (creates the ring)
   const innerCircle = `M ${cx + innerR} ${cy} A ${innerR} ${innerR} 0 1 0 ${cx - innerR} ${cy} A ${innerR} ${innerR} 0 1 0 ${cx + innerR} ${cy} Z`;
 
-  // Checkmark path (same style as before)
+  // Checkmark path
   const checkPath =
     "M17.2929 8.29289C17.6834 8.68342 17.6834 9.31658 17.2929 9.70711L10.7929 16.2071C10.4024 16.5976 9.76921 16.5976 9.37868 16.2071L6.70711 13.5355C6.31658 13.145 6.31658 12.5118 6.70711 12.1213C7.09763 11.7308 7.7308 11.7308 8.12132 12.1213L10.0858 14.0858L15.8787 8.29289C16.2692 7.90237 16.9024 7.90237 17.2929 8.29289Z";
 
