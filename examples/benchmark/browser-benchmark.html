@@ -558,6 +558,65 @@
         // Library Loading
         // ============================================================================
 
+        // Compile schema to JS validator (like TypeBox's TypeCompiler)
+        // This generates direct property checks from JSON Schema
+        function compileSchema(schema) {
+            function generateValidatorCode(schema, path) {
+                const checks = [];
+                const type = schema.type;
+
+                // Type checks
+                if (type === 'string') checks.push(`typeof ${path} === 'string'`);
+                else if (type === 'number') checks.push(`typeof ${path} === 'number' && !Number.isNaN(${path})`);
+                else if (type === 'integer') checks.push(`typeof ${path} === 'number' && Number.isInteger(${path})`);
+                else if (type === 'boolean') checks.push(`typeof ${path} === 'boolean'`);
+                else if (type === 'null') checks.push(`${path} === null`);
+                else if (type === 'object') checks.push(`typeof ${path} === 'object' && ${path} !== null && !Array.isArray(${path})`);
+                else if (type === 'array') checks.push(`Array.isArray(${path})`);
+
+                // String constraints
+                if (schema.minLength !== undefined) checks.push(`${path}.length >= ${schema.minLength}`);
+                if (schema.maxLength !== undefined) checks.push(`${path}.length <= ${schema.maxLength}`);
+
+                // Number constraints
+                if (schema.minimum !== undefined) checks.push(`${path} >= ${schema.minimum}`);
+                if (schema.maximum !== undefined) checks.push(`${path} <= ${schema.maximum}`);
+                if (schema.exclusiveMinimum !== undefined) checks.push(`${path} > ${schema.exclusiveMinimum}`);
+                if (schema.exclusiveMaximum !== undefined) checks.push(`${path} < ${schema.exclusiveMaximum}`);
+
+                // Array constraints
+                if (schema.minItems !== undefined) checks.push(`${path}.length >= ${schema.minItems}`);
+                if (schema.maxItems !== undefined) checks.push(`${path}.length <= ${schema.maxItems}`);
+
+                // Array items
+                if (schema.items) {
+                    const itemCheck = generateValidatorCode(schema.items, 'item');
+                    checks.push(`${path}.every(item => ${itemCheck})`);
+                }
+
+                // Object properties
+                if (schema.properties) {
+                    const required = schema.required || [];
+                    for (const [key, propSchema] of Object.entries(schema.properties)) {
+                        const propPath = `${path}["${key}"]`;
+                        const propCheck = generateValidatorCode(propSchema, propPath);
+                        if (required.includes(key)) {
+                            // Required property - must exist and validate
+                            checks.push(`(${propPath} !== undefined && ${propCheck})`);
+                        } else {
+                            // Optional property - if exists, must validate
+                            checks.push(`(${propPath} === undefined || ${propCheck})`);
+                        }
+                    }
+                }
+
+                return checks.length ? `(${checks.join(' && ')})` : 'true';
+            }
+
+            const code = generateValidatorCode(schema, 'data');
+            return new Function('data', `return ${code}`);
+        }
+
         async function loadWasm() {
             try {
                 const wasmModule = await import('../../pkg/valrs_wasm.js');
@@ -691,14 +750,21 @@
                 libsStatusText.textContent = `Loading libraries (${loaded}/${total})...`;
             };
 
-            // Load valrs WASM validator
+            // Load valrs WASM validator - using validateFast for zero-serialization path
             if (wasmRegistry) {
                 libs.push({
                     name: 'valrs (WASM)',
                     isWasm: true,
-                    validate: (data) => !wasmRegistry.validate('User', data).issues,
+                    validate: (data) => wasmRegistry.validateFast('User', data),
                 });
             }
+
+            // Add compiled JS validator (schema compiled to direct checks, like TypeBox)
+            const compiledValidator = compileSchema(USER_SCHEMA);
+            libs.push({
+                name: 'valrs (compiled)',
+                validate: compiledValidator,
+            });
 
             // Load JS libraries in parallel
             const loaders = [
@@ -799,12 +865,15 @@
                 validator.validate(data);
             }
 
-            // Actual benchmark
+            // Actual benchmark - use result to prevent dead code elimination
+            let result = false;
             const start = performance.now();
             for (let i = 0; i < iterations; i++) {
-                validator.validate(data);
+                result = validator.validate(data);
             }
             const end = performance.now();
+            // Prevent optimization by using result (this is never true but JIT doesn't know)
+            if (result === 'never') console.log('prevent optimization');
 
             const totalTimeMs = end - start;
             // Guard against division by zero / near-zero time

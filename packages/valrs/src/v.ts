@@ -320,6 +320,7 @@ export class ValString extends ValSchema<string, string> {
 
     this.validators = validators;
     this.transforms = transforms;
+    this._hasTransforms = validators.length > 0 || transforms.length > 0;
   }
 
   /**
@@ -630,6 +631,7 @@ export class ValNumber extends ValSchema<number, number> {
     );
 
     this.validators = validators;
+    this._hasTransforms = validators.length > 0;
   }
 
   /**
@@ -1329,6 +1331,7 @@ export class ValObject<T extends Shape> extends ValSchema<
     this.shape = shape;
     this.unknownKeyMode = unknownKeyMode;
     this.catchallSchema = catchallSchema;
+    this._hasTransforms = Object.values(shape).some(s => s._hasTransforms);
   }
 
   // ============================================================================

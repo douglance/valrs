@@ -16,6 +16,7 @@ import type {
 import { isValidationSuccess } from './types';
 import { ValError } from './error';
 import { VENDOR, VERSION, success } from './factory';
+import { compileSchema, type CompiledValidator } from './compiler';
 
 // ============================================================================
 // Refinement Context Types
@@ -154,6 +155,18 @@ export class ValSchema<Input = unknown, Output = Input>
   };
 
   /**
+   * Compiled validator for fast boolean checks.
+   * Lazily initialized on first check() call.
+   */
+  private _compiledCheck?: CompiledValidator;
+
+  /**
+   * Whether this schema or any of its children contain transforms.
+   * When true, validation must go through WASM to apply transforms.
+   */
+  protected _hasTransforms: boolean = false;
+
+  /**
    * Creates a new ValSchema wrapping a validation function.
    *
    * @param validateFn - Function that validates input values
@@ -224,6 +237,15 @@ export class ValSchema<Input = unknown, Output = Input>
    * ```
    */
   safeParse(data: unknown): SafeParseResult<Output> {
+    // Fast path: use JS-compiled check for non-transform schemas
+    if (!this._hasTransforms && this.check(data)) {
+      return {
+        success: true,
+        data: data as Output,
+      };
+    }
+
+    // Full validation path (WASM) for transforms or when check fails
     const result = this['~standard'].validate(data);
 
     if (isValidationSuccess(result)) {
@@ -261,6 +283,35 @@ export class ValSchema<Input = unknown, Output = Input>
    */
   toJsonSchema(target: string = 'draft-2020-12'): Record<string, unknown> {
     return this['~standard'].jsonSchema.input({ target });
+  }
+
+  /**
+   * Fast boolean check using JS-compiled validator.
+   *
+   * Returns true if the data passes validation, false otherwise.
+   * Does NOT apply transforms - use safeParse() for that.
+   *
+   * @param data - The value to check
+   * @returns true if valid, false otherwise
+   *
+   * @example
+   * ```typescript
+   * const schema = v.string();
+   * schema.check('hello'); // true
+   * schema.check(42);      // false
+   * ```
+   */
+  check(data: unknown): boolean {
+    if (!this._compiledCheck) {
+      try {
+        const jsonSchema = this.toJsonSchema();
+        this._compiledCheck = compileSchema(jsonSchema as Parameters<typeof compileSchema>[0]);
+      } catch {
+        // Fallback: always return true if compilation fails
+        this._compiledCheck = () => true;
+      }
+    }
+    return this._compiledCheck(data);
   }
 
   /**
@@ -709,6 +760,7 @@ export class ValArray<S extends ValSchema<unknown, unknown>> extends ValSchema<
     super(validateFn, inputJsonSchemaFn, outputJsonSchemaFn);
     this.element = elementSchema;
     this.validators = validators;
+    this._hasTransforms = elementSchema._hasTransforms || validators.length > 0;
   }
 
   /**
@@ -820,6 +872,7 @@ export class ValUnion<T extends ReadonlyArray<ValSchema<unknown, unknown>>> exte
 
     super(validateFn, inputJsonSchemaFn, outputJsonSchemaFn);
     this.options = options;
+    this._hasTransforms = options.some(s => s._hasTransforms);
   }
 }
 
@@ -897,6 +950,7 @@ export class ValIntersection<
     super(validateFn, inputJsonSchemaFn, outputJsonSchemaFn);
     this.left = left;
     this.right = right;
+    this._hasTransforms = left._hasTransforms || right._hasTransforms;
   }
 }
 
@@ -1067,6 +1121,7 @@ export class ValDefault<T extends ValSchema<unknown, unknown>, D> extends ValSch
 
     super(validateFn, inputJsonSchemaFn, outputJsonSchemaFn);
     this.innerSchema = schema;
+    this._hasTransforms = true;
   }
 
   /**
@@ -1109,6 +1164,7 @@ export class ValCatch<T extends ValSchema<unknown, unknown>, C> extends ValSchem
 
     super(validateFn, inputJsonSchemaFn, outputJsonSchemaFn);
     this.innerSchema = schema;
+    this._hasTransforms = true;
   }
 
   /**
@@ -1177,6 +1233,7 @@ export class ValTransformed<Input, Middle, Output> extends ValSchema<Input, Outp
 
     // Cast to sync validate function - async is handled by parseAsync/safeParseAsync
     super(validateFn as ValidateFn<Output>, inputJsonSchemaFn, outputJsonSchemaFn);
+    this._hasTransforms = true;
   }
 }
 
@@ -1256,6 +1313,7 @@ export class ValRefined<Input, Output> extends ValSchema<Input, Output> {
 
     // Cast to sync validate function - async is handled by parseAsync/safeParseAsync
     super(validateFn as ValidateFn<Output>, inputJsonSchemaFn, outputJsonSchemaFn);
+    this._hasTransforms = true;
   }
 }
 
@@ -1332,6 +1390,7 @@ export class ValSuperRefined<Input, Output> extends ValSchema<Input, Output> {
 
     // Cast to sync validate function - async is handled by parseAsync/safeParseAsync
     super(validateFn as ValidateFn<Output>, inputJsonSchemaFn, outputJsonSchemaFn);
+    this._hasTransforms = true;
   }
 }
 
@@ -1379,6 +1438,7 @@ export class ValPiped<Input, Middle, Output> extends ValSchema<Input, Output> {
 
     // Cast to sync validate function - async is handled by parseAsync/safeParseAsync
     super(validateFn as ValidateFn<Output>, inputJsonSchemaFn, outputJsonSchemaFn);
+    this._hasTransforms = first._hasTransforms || second._hasTransforms;
   }
 }
 
@@ -1411,6 +1471,7 @@ export class ValPreprocessed<Input, Output> extends ValSchema<unknown, Output> {
 
     // Cast to sync validate function - async is handled by parseAsync/safeParseAsync
     super(validateFn as ValidateFn<Output>, inputJsonSchemaFn, outputJsonSchemaFn);
+    this._hasTransforms = true;
   }
 }
 
