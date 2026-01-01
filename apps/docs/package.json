@@ -12,6 +12,7 @@
     "cf-typegen": "wrangler types --env-interface CloudflareEnv"
   },
   "dependencies": {
+    "framer-motion": "^12.23.26",
     "fumadocs-core": "^14.0.0",
     "fumadocs-mdx": "^11.0.0",
     "fumadocs-ui": "^14.0.0",
