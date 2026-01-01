@@ -13,49 +13,44 @@ interface ValrsLogoProps {
  * The checkmark is transparent - background shows through
  */
 export function ValrsLogo({ size = 20, className = "" }: ValrsLogoProps) {
-  // Generate gear path with many teeth all the way around
+  // Generate gear path with spiky teeth all the way around
   const cx = 12;
   const cy = 12;
   const teeth = 24;
   const outerR = 11;
-  const innerR = 8.5;
-  const toothDepth = 1.8;
+  const innerR = 7;
+  const toothDepth = 1.4; // Shallower valleys = thicker gear body
 
-  // Create gear with teeth all around
+  // Create gear with sharp triangular teeth
   let gearPath = "";
   for (let i = 0; i < teeth; i++) {
     const angle1 = (i / teeth) * Math.PI * 2;
-    const angle2 = ((i + 0.3) / teeth) * Math.PI * 2;
-    const angle3 = ((i + 0.5) / teeth) * Math.PI * 2;
-    const angle4 = ((i + 0.7) / teeth) * Math.PI * 2;
-    const angle5 = ((i + 1) / teeth) * Math.PI * 2;
+    const angle2 = ((i + 0.5) / teeth) * Math.PI * 2; // Peak at center
+    const angle3 = ((i + 1) / teeth) * Math.PI * 2;
 
-    // Base of tooth
+    // Base of tooth (valley)
     const x1 = cx + Math.cos(angle1) * (outerR - toothDepth);
     const y1 = cy + Math.sin(angle1) * (outerR - toothDepth);
-    // Rise to tooth tip
+    // Sharp peak
     const x2 = cx + Math.cos(angle2) * outerR;
     const y2 = cy + Math.sin(angle2) * outerR;
-    // Tooth tip flat
-    const x3 = cx + Math.cos(angle4) * outerR;
-    const y3 = cy + Math.sin(angle4) * outerR;
-    // Drop back down
-    const x4 = cx + Math.cos(angle5) * (outerR - toothDepth);
-    const y4 = cy + Math.sin(angle5) * (outerR - toothDepth);
+    // Next valley
+    const x3 = cx + Math.cos(angle3) * (outerR - toothDepth);
+    const y3 = cy + Math.sin(angle3) * (outerR - toothDepth);
 
     if (i === 0) {
       gearPath += `M ${x1} ${y1} `;
     }
-    gearPath += `L ${x2} ${y2} L ${x3} ${y3} L ${x4} ${y4} `;
+    gearPath += `L ${x2} ${y2} L ${x3} ${y3} `;
   }
   gearPath += "Z";
 
   // Inner circle cutout (creates the ring)
   const innerCircle = `M ${cx + innerR} ${cy} A ${innerR} ${innerR} 0 1 0 ${cx - innerR} ${cy} A ${innerR} ${innerR} 0 1 0 ${cx + innerR} ${cy} Z`;
 
-  // Checkmark path
+  // Smaller checkmark path (scaled down and centered)
   const checkPath =
-    "M17.2929 8.29289C17.6834 8.68342 17.6834 9.31658 17.2929 9.70711L10.7929 16.2071C10.4024 16.5976 9.76921 16.5976 9.37868 16.2071L6.70711 13.5355C6.31658 13.145 6.31658 12.5118 6.70711 12.1213C7.09763 11.7308 7.7308 11.7308 8.12132 12.1213L10.0858 14.0858L15.8787 8.29289C16.2692 7.90237 16.9024 7.90237 17.2929 8.29289Z";
+    "M16.5 9.5C16.8 9.8 16.8 10.2 16.5 10.5L11.5 15.5C11.2 15.8 10.8 15.8 10.5 15.5L8.5 13.5C8.2 13.2 8.2 12.8 8.5 12.5C8.8 12.2 9.2 12.2 9.5 12.5L11 14L15.5 9.5C15.8 9.2 16.2 9.2 16.5 9.5Z";
 
   return (
     <svg

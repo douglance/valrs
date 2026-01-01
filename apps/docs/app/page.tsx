@@ -324,7 +324,7 @@ export default function HomePage() {
         >
           {/* Logo */}
           <motion.div
-            className="mb-6 flex justify-center"
+            className="mb-4 sm:mb-6 mt-8 sm:mt-0 flex justify-center"
             variants={fadeInUp}
             transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}
           >

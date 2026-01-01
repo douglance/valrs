@@ -5,7 +5,7 @@
   "scripts": {
     "postinstall": "fumadocs-mdx",
     "dev": "next dev",
-    "build": "fumadocs-mdx && next build",
+    "build": "fumadocs-mdx && opennextjs-cloudflare build",
     "start": "next start",
     "preview": "wrangler pages dev",
     "deploy": "wrangler pages deploy",
