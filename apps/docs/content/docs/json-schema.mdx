@@ -9,45 +9,48 @@ valrs schemas can generate JSON Schema definitions for use with other tools, API
 
 ## Generating JSON Schema
 
-All built-in schemas and custom schemas created with `createSchemaWithJsonSchema` support JSON Schema generation:
+Use the `.toJsonSchema()` method to generate JSON Schema from any valrs schema:
 
 ```typescript
-import { StringSchema, Int32Schema, BooleanSchema } from 'valrs';
+import { v } from 'valrs';
 
 // Generate JSON Schema for a string
-const stringSchema = StringSchema['~standard'].jsonSchema.input({
-  target: 'draft-2020-12'
-});
-console.log(stringSchema);
+const stringSchema = v.string().toJsonSchema();
 // { type: 'string' }
 
 // Generate JSON Schema for an integer
-const intSchema = Int32Schema['~standard'].jsonSchema.input({
-  target: 'draft-2020-12'
-});
-console.log(intSchema);
+const intSchema = v.int32().toJsonSchema();
 // { type: 'integer', minimum: -2147483648, maximum: 2147483647 }
 
-// Generate JSON Schema for a boolean
-const boolSchema = BooleanSchema['~standard'].jsonSchema.input({
-  target: 'draft-2020-12'
+// Generate JSON Schema for an object
+const userSchema = v.object({
+  name: v.string(),
+  age: v.number(),
+  email: v.string().optional(),
 });
-console.log(boolSchema);
-// { type: 'boolean' }
+const jsonSchema = userSchema.toJsonSchema();
+// {
+//   type: 'object',
+//   properties: {
+//     name: { type: 'string' },
+//     age: { type: 'number' },
+//     email: { oneOf: [{ type: 'string' }, { type: 'null' }] }
+//   },
+//   required: ['name', 'age']
+// }
 ```
 
 ## Supported Targets
 
-valrs supports multiple JSON Schema versions and formats:
+The `.toJsonSchema()` method accepts an optional target parameter to specify the JSON Schema version:
 
-### Draft 2020-12
+### Draft 2020-12 (Default)
 
-The latest JSON Schema specification:
+The latest JSON Schema specification. This is the default when no target is specified:
 
 ```typescript
-const schema = StringSchema['~standard'].jsonSchema.input({
-  target: 'draft-2020-12'
-});
+const schema = v.string().toJsonSchema(); // Uses draft-2020-12
+const schema = v.string().toJsonSchema('draft-2020-12'); // Explicit
 ```
 
 ### Draft 07
@@ -55,9 +58,7 @@ const schema = StringSchema['~standard'].jsonSchema.input({
 Widely supported older version:
 
 ```typescript
-const schema = StringSchema['~standard'].jsonSchema.input({
-  target: 'draft-07'
-});
+const schema = v.string().toJsonSchema('draft-07');
 ```
 
 ### OpenAPI 3.0
@@ -65,129 +66,136 @@ const schema = StringSchema['~standard'].jsonSchema.input({
 For API documentation with OpenAPI/Swagger:
 
 ```typescript
-const schema = StringSchema['~standard'].jsonSchema.input({
-  target: 'openapi-3.0'
-});
+const schema = v.string().toJsonSchema('openapi-3.0');
 ```
 
-## Input vs Output Schemas
+## Type Mappings
 
-For schemas that transform values (different input and output types), you can generate both input and output JSON Schemas:
+The following table shows how valrs types map to JSON Schema:
 
-```typescript
-import { createSchemaWithSeparateJsonSchemas } from 'valrs';
+| valrs Type | JSON Schema |
+|------------|-------------|
+| `v.string()` | `{ type: 'string' }` |
+| `v.number()` | `{ type: 'number' }` |
+| `v.boolean()` | `{ type: 'boolean' }` |
+| `v.int32()` | `{ type: 'integer', minimum: -2147483648, maximum: 2147483647 }` |
+| `v.int64()` | `{ type: 'integer' }` |
+| `v.uint32()` | `{ type: 'integer', minimum: 0, maximum: 4294967295 }` |
+| `v.uint64()` | `{ type: 'integer', minimum: 0 }` |
+| `v.float32()` | `{ type: 'number' }` |
+| `v.float64()` | `{ type: 'number' }` |
+| `v.literal(value)` | `{ const: value }` |
+| `v.literal(null)` | `{ type: 'null' }` |
+| `v.enum([...])` | `{ type: 'string', enum: [...] }` |
+| `v.array(T)` | `{ type: 'array', items: T }` |
+| `v.object({...})` | `{ type: 'object', properties: {...}, required: [...] }` |
+| `v.record(T)` | `{ type: 'object', additionalProperties: T }` |
+| `v.tuple([A, B])` | `{ type: 'array', prefixItems: [A, B], minItems: 2, maxItems: 2 }` |
+| `v.union([A, B])` | `{ oneOf: [A, B] }` |
+| `v.intersection(A, B)` | `{ allOf: [A, B] }` |
+| `v.map(K, V)` | Array of `[key, value]` tuples |
+| `v.set(T)` | `{ type: 'array', items: T, uniqueItems: true }` |
+| `T.optional()` | `{ oneOf: [T, { type: 'null' }] }` |
+| `T.nullable()` | `{ oneOf: [T, { type: 'null' }] }` |
 
-const DateSchema = createSchemaWithSeparateJsonSchemas<string, Date>(
-  (value) => {
-    if (typeof value !== 'string') {
-      return { issues: [{ message: 'Expected string' }] };
-    }
-    return { value: new Date(value) };
-  },
-  // Input schema - what your API accepts
-  (options) => ({
-    type: 'string',
-    format: 'date-time',
-    description: 'ISO 8601 date string',
-  }),
-  // Output schema - what the validator produces
-  (options) => ({
-    type: 'object',
-    description: 'JavaScript Date object',
-  })
-);
+## Object Schemas
 
-// Generate input schema (for request validation)
-const inputSchema = DateSchema['~standard'].jsonSchema.input({
-  target: 'openapi-3.0'
-});
-
-// Generate output schema (for response documentation)
-const outputSchema = DateSchema['~standard'].jsonSchema.output({
-  target: 'openapi-3.0'
-});
-```
-
-## Custom Schema JSON Generation
-
-When creating custom schemas, define how they map to JSON Schema:
+Object schemas include property definitions and required fields:
 
 ```typescript
-import { createSchemaWithJsonSchema } from 'valrs';
-
-const EmailSchema = createSchemaWithJsonSchema<string>(
-  (value) => {
-    if (typeof value !== 'string') {
-      return { issues: [{ message: 'Expected string' }] };
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(value)) {
-      return { issues: [{ message: 'Invalid email format' }] };
-    }
-    return { value };
-  },
-  (options) => ({
-    type: 'string',
-    format: 'email',
-    pattern: '^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$',
-    description: 'Email address',
-    examples: ['user@example.com'],
-  })
-);
-
-const schema = EmailSchema['~standard'].jsonSchema.input({
-  target: 'draft-2020-12'
+const schema = v.object({
+  name: v.string(),
+  age: v.number(),
+  active: v.boolean().optional(),
 });
+
+const jsonSchema = schema.toJsonSchema();
 // {
-//   type: 'string',
-//   format: 'email',
-//   pattern: '^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$',
-//   description: 'Email address',
-//   examples: ['user@example.com']
+//   type: 'object',
+//   properties: {
+//     name: { type: 'string' },
+//     age: { type: 'number' },
+//     active: { oneOf: [{ type: 'boolean' }, { type: 'null' }] }
+//   },
+//   required: ['name', 'age']
 // }
 ```
 
-## Target-Specific Generation
+### Strict Mode
 
-You can customize output based on the target format:
+Object schemas with `.strict()` set `additionalProperties: false`:
 
 ```typescript
-const UrlSchema = createSchemaWithJsonSchema<string>(
-  (value) => {
-    if (typeof value !== 'string') {
-      return { issues: [{ message: 'Expected string' }] };
-    }
-    try {
-      new URL(value);
-      return { value };
-    } catch {
-      return { issues: [{ message: 'Invalid URL' }] };
-    }
-  },
-  (options) => {
-    const base = {
-      type: 'string' as const,
-      format: 'uri',
-    };
+const schema = v.object({
+  name: v.string(),
+}).strict();
 
-    // Add features based on target
-    switch (options.target) {
-      case 'draft-2020-12':
-        return {
-          ...base,
-          $comment: 'Must be a valid URL',
-        };
-      case 'openapi-3.0':
-        return {
-          ...base,
-          description: 'A valid URL',
-          example: 'https://example.com',
-        };
-      default:
-        return base;
-    }
-  }
-);
+const jsonSchema = schema.toJsonSchema();
+// {
+//   type: 'object',
+//   properties: { name: { type: 'string' } },
+//   required: ['name'],
+//   additionalProperties: false
+// }
+```
+
+### Catchall Properties
+
+Object schemas with `.catchall()` define `additionalProperties`:
+
+```typescript
+const schema = v.object({
+  name: v.string(),
+}).catchall(v.number());
+
+const jsonSchema = schema.toJsonSchema();
+// {
+//   type: 'object',
+//   properties: { name: { type: 'string' } },
+//   required: ['name'],
+//   additionalProperties: { type: 'number' }
+// }
+```
+
+## Composite Types
+
+### Arrays
+
+```typescript
+const schema = v.array(v.string()).toJsonSchema();
+// { type: 'array', items: { type: 'string' } }
+```
+
+### Tuples
+
+```typescript
+const schema = v.tuple([v.string(), v.number()]).toJsonSchema();
+// {
+//   type: 'array',
+//   prefixItems: [{ type: 'string' }, { type: 'number' }],
+//   minItems: 2,
+//   maxItems: 2
+// }
+```
+
+### Unions
+
+```typescript
+const schema = v.union([v.string(), v.number()]).toJsonSchema();
+// { oneOf: [{ type: 'string' }, { type: 'number' }] }
+```
+
+### Discriminated Unions
+
+```typescript
+const schema = v.discriminatedUnion('type', [
+  v.object({ type: v.literal('a'), value: v.string() }),
+  v.object({ type: v.literal('b'), count: v.number() }),
+]).toJsonSchema();
+// {
+//   oneOf: [...],
+//   discriminator: { propertyName: 'type' }
+// }
 ```
 
 ## Use Cases
@@ -197,7 +205,14 @@ const UrlSchema = createSchemaWithJsonSchema<string>(
 Generate schemas for your API documentation:
 
 ```typescript
-import { StringSchema, Int32Schema } from 'valrs';
+import { v } from 'valrs';
+
+const UserSchema = v.object({
+  id: v.int32(),
+  name: v.string(),
+  email: v.string(),
+  createdAt: v.string(),
+});
 
 const openApiSpec = {
   openapi: '3.0.0',
@@ -207,18 +222,7 @@ const openApiSpec = {
         requestBody: {
           content: {
             'application/json': {
-              schema: {
-                type: 'object',
-                properties: {
-                  name: StringSchema['~standard'].jsonSchema.input({
-                    target: 'openapi-3.0'
-                  }),
-                  age: Int32Schema['~standard'].jsonSchema.input({
-                    target: 'openapi-3.0'
-                  }),
-                },
-                required: ['name', 'age'],
-              },
+              schema: UserSchema.toJsonSchema('openapi-3.0'),
             },
           },
         },
@@ -233,17 +237,16 @@ const openApiSpec = {
 Some form libraries accept JSON Schema for validation:
 
 ```typescript
-import { StringSchema } from 'valrs';
+import { v } from 'valrs';
+
+const ContactSchema = v.object({
+  name: v.string(),
+  email: v.string(),
+  message: v.string(),
+});
 
 // Use with react-jsonschema-form or similar
-const formSchema = {
-  type: 'object',
-  properties: {
-    email: EmailSchema['~standard'].jsonSchema.input({
-      target: 'draft-07'
-    }),
-  },
-};
+const formSchema = ContactSchema.toJsonSchema('draft-07');
 ```
 
 ### Database Schema Generation
@@ -252,11 +255,32 @@ Generate schemas for database column definitions:
 
 ```typescript
 const columnSchemas = {
-  name: StringSchema['~standard'].jsonSchema.input({ target: 'draft-07' }),
-  age: Int32Schema['~standard'].jsonSchema.input({ target: 'draft-07' }),
-  active: BooleanSchema['~standard'].jsonSchema.input({ target: 'draft-07' }),
+  name: v.string().toJsonSchema(),
+  age: v.int32().toJsonSchema(),
+  active: v.boolean().toJsonSchema(),
 };
 ```
+
+## Advanced: Input vs Output Schemas
+
+For schemas that transform values (where input and output types differ), you can access both input and output JSON Schemas through the Standard Schema interface:
+
+```typescript
+import { v } from 'valrs';
+
+// A schema that transforms string input to number output
+const schema = v.string().transform((s) => parseInt(s, 10));
+
+// Input schema - what your API accepts
+const inputSchema = schema['~standard'].jsonSchema.input({ target: 'openapi-3.0' });
+// { type: 'string' }
+
+// Output schema - what the validator produces
+const outputSchema = schema['~standard'].jsonSchema.output({ target: 'openapi-3.0' });
+// {} (transforms don't have predictable output schemas)
+```
+
+Note: The `.toJsonSchema()` method returns the input schema. For output schemas, use the `['~standard'].jsonSchema.output()` method directly.
 
 ## Next Steps
 

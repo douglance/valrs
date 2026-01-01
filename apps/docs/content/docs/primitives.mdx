@@ -1,162 +1,382 @@
 ---
-title: Primitive Types
-description: Built-in validators for JavaScript primitive types
+title: Primitives
+description: String, number, boolean, and other primitive type schemas
 ---
 
-# Primitive Types
+# Primitives
 
-valrs provides built-in schemas for all JavaScript primitive types with precise numeric validation.
+valrs provides schemas for all JavaScript primitive types with chainable validation methods.
 
 ## String
 
-Validates any string value:
+Create string schemas with `v.string()`:
 
 ```typescript
-import { StringSchema, isValidationSuccess } from 'valrs';
+import { v } from 'valrs';
 
-const result = StringSchema['~standard'].validate('hello world');
-if (isValidationSuccess(result)) {
-  console.log(result.value); // 'hello world'
-}
+const schema = v.string();
 
-// Rejects non-strings
-StringSchema['~standard'].validate(123);
-// { issues: [{ message: 'Expected string' }] }
+schema.parse('hello'); // 'hello'
+schema.parse(123);     // throws ZodError
+```
+
+### String Methods
+
+| Method | Description |
+|--------|-------------|
+| `.min(n)` | Minimum length |
+| `.max(n)` | Maximum length |
+| `.length(n)` | Exact length |
+| `.email()` | Valid email format |
+| `.url()` | Valid URL format |
+| `.uuid()` | Valid UUID format |
+| `.cuid()` | Valid CUID format |
+| `.cuid2()` | Valid CUID2 format |
+| `.ulid()` | Valid ULID format |
+| `.regex(re)` | Match regular expression |
+| `.includes(str)` | Contains substring |
+| `.startsWith(str)` | Starts with prefix |
+| `.endsWith(str)` | Ends with suffix |
+| `.datetime()` | ISO 8601 datetime |
+| `.ip()` | Valid IP address (v4 or v6) |
+| `.trim()` | Trim whitespace (transform) |
+| `.toLowerCase()` | Convert to lowercase (transform) |
+| `.toUpperCase()` | Convert to uppercase (transform) |
+
+### String Examples
+
+```typescript
+import { v } from 'valrs';
+
+// Email validation
+const email = v.string().email();
+email.parse('user@example.com'); // valid
+email.parse('invalid');          // throws
+
+// URL validation
+const url = v.string().url();
+url.parse('https://example.com'); // valid
+
+// UUID validation
+const uuid = v.string().uuid();
+uuid.parse('550e8400-e29b-41d4-a716-446655440000'); // valid
+
+// CUID validation
+const cuid = v.string().cuid();
+cuid.parse('cjld2cjxh0000qzrmn831i7rn'); // valid
+
+// CUID2 validation
+const cuid2 = v.string().cuid2();
+cuid2.parse('tz4a98xxat96iws9zmbrgj3a'); // valid
+
+// ULID validation
+const ulid = v.string().ulid();
+ulid.parse('01ARZ3NDEKTSV4RRFFQ69G5FAV'); // valid
+
+// Length constraints
+const username = v.string().min(3).max(20);
+username.parse('alice'); // valid
+username.parse('ab');    // throws: too short
+
+// Regex pattern
+const slug = v.string().regex(/^[a-z0-9-]+$/);
+slug.parse('my-blog-post'); // valid
+
+// Transforms
+const normalized = v.string().trim().toLowerCase();
+normalized.parse('  HELLO  '); // 'hello'
+
+// Datetime validation
+const datetime = v.string().datetime();
+datetime.parse('2024-01-15T10:30:00Z'); // valid
+
+// IP address
+const ip = v.string().ip();
+ip.parse('192.168.1.1');  // valid (IPv4)
+ip.parse('::1');          // valid (IPv6)
+```
+
+### Custom Error Messages
+
+```typescript
+const email = v.string({
+  required_error: 'Email is required',
+  invalid_type_error: 'Email must be a string',
+}).email({ message: 'Invalid email address' });
 ```
 
 ## Number
 
-Validates IEEE 754 double-precision floating-point numbers:
+Create number schemas with `v.number()`:
 
 ```typescript
-import { NumberSchema } from 'valrs';
+import { v } from 'valrs';
 
-NumberSchema['~standard'].validate(3.14159);  // ✓ { value: 3.14159 }
-NumberSchema['~standard'].validate(-273.15);  // ✓ { value: -273.15 }
-NumberSchema['~standard'].validate(Infinity); // ✓ { value: Infinity }
-NumberSchema['~standard'].validate(NaN);      // ✓ { value: NaN }
-NumberSchema['~standard'].validate('42');     // ✗ issues: [...]
+const schema = v.number();
+
+schema.parse(42);      // 42
+schema.parse(3.14);    // 3.14
+schema.parse('42');    // throws ZodError
+```
+
+### Number Methods
+
+| Method | Description |
+|--------|-------------|
+| `.gt(n)` | Greater than |
+| `.gte(n)` or `.min(n)` | Greater than or equal |
+| `.lt(n)` | Less than |
+| `.lte(n)` or `.max(n)` | Less than or equal |
+| `.int()` | Must be integer |
+| `.positive()` | Must be positive |
+| `.nonnegative()` | Must be non-negative |
+| `.negative()` | Must be negative |
+| `.nonpositive()` | Must be non-positive |
+| `.multipleOf(n)` or `.step(n)` | Must be multiple of n |
+| `.finite()` | Must be finite (not Infinity) |
+| `.safe()` | Must be safe integer |
+
+### Number Examples
+
+```typescript
+import { v } from 'valrs';
+
+// Integer validation
+const age = v.number().int().min(0).max(150);
+age.parse(25);   // valid
+age.parse(25.5); // throws: not an integer
+
+// Positive numbers
+const price = v.number().positive();
+price.parse(9.99);  // valid
+price.parse(-5);    // throws
+
+// Range validation
+const percentage = v.number().min(0).max(100);
+percentage.parse(75); // valid
+
+// Greater than / less than
+const temperature = v.number().gt(-273.15).lt(1000);
+temperature.parse(20); // valid
+
+// Multiple of
+const even = v.number().multipleOf(2);
+even.parse(4); // valid
+even.parse(3); // throws
+
+// Safe integers
+const safeInt = v.number().int().safe();
+safeInt.parse(9007199254740991);  // valid (Number.MAX_SAFE_INTEGER)
+safeInt.parse(9007199254740992);  // throws
+
+// Finite numbers
+const finite = v.number().finite();
+finite.parse(42);       // valid
+finite.parse(Infinity); // throws
+```
+
+## BigInt
+
+Create bigint schemas with `v.bigint()`:
+
+```typescript
+import { v } from 'valrs';
+
+const schema = v.bigint();
+
+schema.parse(100n);  // 100n
+schema.parse(100);   // throws ZodError
+```
+
+```typescript
+const largeNumber = v.bigint();
+largeNumber.parse(9007199254740993n); // valid
 ```
 
 ## Boolean
 
-Validates `true` or `false`:
+Create boolean schemas with `v.boolean()`:
 
 ```typescript
-import { BooleanSchema } from 'valrs';
+import { v } from 'valrs';
 
-BooleanSchema['~standard'].validate(true);   // ✓ { value: true }
-BooleanSchema['~standard'].validate(false);  // ✓ { value: false }
-BooleanSchema['~standard'].validate(1);      // ✗ issues: [...]
-BooleanSchema['~standard'].validate('true'); // ✗ issues: [...]
+const schema = v.boolean();
+
+schema.parse(true);   // true
+schema.parse(false);  // false
+schema.parse(1);      // throws ZodError
+schema.parse('true'); // throws ZodError
+```
+
+## Date
+
+Create date schemas with `v.date()`:
+
+```typescript
+import { v } from 'valrs';
+
+const schema = v.date();
+
+schema.parse(new Date());          // valid
+schema.parse('2024-01-15');        // throws (use v.coerce.date() for strings)
+```
+
+```typescript
+const futureDate = v.date();
+futureDate.parse(new Date()); // valid
+```
+
+## Null, Undefined, Void
+
+```typescript
+import { v } from 'valrs';
+
+// Null only
+const nullSchema = v.null();
+nullSchema.parse(null);      // null
+nullSchema.parse(undefined); // throws
+
+// Undefined only
+const undefinedSchema = v.undefined();
+undefinedSchema.parse(undefined); // undefined
+undefinedSchema.parse(null);      // throws
+
+// Void (undefined)
+const voidSchema = v.void();
+voidSchema.parse(undefined); // undefined
+```
+
+## Any, Unknown, Never
+
+```typescript
+import { v } from 'valrs';
+
+// Any - no validation, any value passes
+const anySchema = v.any();
+anySchema.parse('anything'); // 'anything'
+anySchema.parse(123);        // 123
+anySchema.parse(null);       // null
+
+// Unknown - like any, but type-safe
+const unknownSchema = v.unknown();
+unknownSchema.parse('anything'); // 'anything'
+
+// Never - always fails
+const neverSchema = v.never();
+neverSchema.parse('anything'); // throws
+```
+
+## Coercion
+
+Use `v.coerce` to automatically convert values before validation:
+
+```typescript
+import { v } from 'valrs';
+
+// Coerce to string
+v.coerce.string().parse(123);     // '123'
+v.coerce.string().parse(true);    // 'true'
+v.coerce.string().parse(null);    // 'null'
+v.coerce.string().parse(undefined); // 'undefined'
+
+// Coerce to number
+v.coerce.number().parse('42');    // 42
+v.coerce.number().parse('3.14');  // 3.14
+v.coerce.number().parse('abc');   // throws (NaN is not valid)
+
+// Coerce to boolean
+v.coerce.boolean().parse('true'); // true (any truthy value)
+v.coerce.boolean().parse(1);      // true
+v.coerce.boolean().parse(0);      // false
+v.coerce.boolean().parse('');     // false
+
+// Coerce to date
+v.coerce.date().parse('2024-01-15');           // Date object
+v.coerce.date().parse(1705276800000);          // Date from timestamp
+
+// Coerce to bigint
+v.coerce.bigint().parse('100');   // 100n
+v.coerce.bigint().parse(100);     // 100n
+```
+
+### Coercion Types
+
+| Coercer | Description |
+|---------|-------------|
+| `v.coerce.string()` | Converts to string using `String()` |
+| `v.coerce.number()` | Converts to number using `Number()`, fails on NaN |
+| `v.coerce.boolean()` | Converts to boolean using `Boolean()` |
+| `v.coerce.bigint()` | Converts to bigint using `BigInt()` |
+| `v.coerce.date()` | Converts to Date using `new Date()` |
+
+### Coercion with Validation
+
+Coercion happens before validation methods are applied:
+
+```typescript
+const age = v.coerce.number().int().min(0).max(150);
+
+age.parse('25');  // 25 (coerced from string, then validated)
+age.parse('abc'); // throws (can't coerce to number)
 ```
 
 ## Integer Types
 
-### Int32
-
-32-bit signed integer (-2,147,483,648 to 2,147,483,647):
+valrs provides specialized integer schemas for specific bit widths:
 
 ```typescript
-import { Int32Schema, IntegerSchema } from 'valrs';
+import { v } from 'valrs';
 
-Int32Schema['~standard'].validate(42);           // ✓ { value: 42 }
-Int32Schema['~standard'].validate(-1000000);     // ✓ { value: -1000000 }
-Int32Schema['~standard'].validate(3.14);         // ✗ Not an integer
-Int32Schema['~standard'].validate(2147483648);   // ✗ Exceeds i32 max
+// 32-bit signed integer (-2147483648 to 2147483647)
+const int32 = v.int32();
+int32.parse(42);           // valid
+int32.parse(2147483648);   // throws (out of range)
 
-// IntegerSchema is an alias for Int32Schema
-IntegerSchema['~standard'].validate(42);         // ✓ { value: 42 }
+// 64-bit signed integer
+const int64 = v.int64();
+
+// 32-bit unsigned integer (0 to 4294967295)
+const uint32 = v.uint32();
+uint32.parse(42);          // valid
+uint32.parse(-1);          // throws (negative)
+
+// 64-bit unsigned integer
+const uint64 = v.uint64();
+
+// 32-bit floating point
+const float32 = v.float32();
+
+// 64-bit floating point
+const float64 = v.float64();
 ```
 
-### Int64
+## Literals
 
-64-bit signed integer:
+Create schemas for literal values:
 
 ```typescript
-import { Int64Schema } from 'valrs';
+import { v } from 'valrs';
 
-Int64Schema['~standard'].validate(9007199254740991n); // ✓
-Int64Schema['~standard'].validate(-9007199254740991); // ✓
+// String literal
+const hello = v.literal('hello');
+hello.parse('hello'); // 'hello'
+hello.parse('world'); // throws
+
+// Number literal
+const answer = v.literal(42);
+answer.parse(42); // 42
+
+// Boolean literal
+const yes = v.literal(true);
+yes.parse(true);  // true
+yes.parse(false); // throws
+
+// BigInt literal
+const bigLiteral = v.literal(100n);
 ```
-
-<Callout type="warn">
-  JavaScript numbers can only safely represent integers up to 2^53 - 1. For larger values, consider using BigInt or string representation.
-</Callout>
-
-### Uint32
-
-32-bit unsigned integer (0 to 4,294,967,295):
-
-```typescript
-import { Uint32Schema } from 'valrs';
-
-Uint32Schema['~standard'].validate(0);           // ✓ { value: 0 }
-Uint32Schema['~standard'].validate(4294967295);  // ✓ { value: 4294967295 }
-Uint32Schema['~standard'].validate(-1);          // ✗ Negative not allowed
-```
-
-### Uint64
-
-64-bit unsigned integer:
-
-```typescript
-import { Uint64Schema } from 'valrs';
-
-Uint64Schema['~standard'].validate(0);                    // ✓
-Uint64Schema['~standard'].validate(18446744073709551615n); // ✓
-```
-
-## Float Types
-
-### Float32
-
-32-bit floating-point number:
-
-```typescript
-import { Float32Schema } from 'valrs';
-
-Float32Schema['~standard'].validate(3.14);     // ✓
-Float32Schema['~standard'].validate(1.5e10);   // ✓
-```
-
-### Float64
-
-64-bit floating-point number (same as `NumberSchema`):
-
-```typescript
-import { Float64Schema, DoubleSchema } from 'valrs';
-
-Float64Schema['~standard'].validate(3.141592653589793); // ✓
-
-// DoubleSchema is an alias for Float64Schema
-DoubleSchema['~standard'].validate(2.718281828459045);  // ✓
-```
-
-## Type Reference
-
-| Schema | TypeScript Type | Range/Description |
-|--------|-----------------|-------------------|
-| `StringSchema` | `string` | Any string value |
-| `NumberSchema` | `number` | IEEE 754 double-precision float |
-| `BooleanSchema` | `boolean` | `true` or `false` |
-| `Int32Schema` | `number` | -2^31 to 2^31-1 |
-| `Int64Schema` | `number` | -2^63 to 2^63-1 |
-| `Uint32Schema` | `number` | 0 to 2^32-1 |
-| `Uint64Schema` | `number` | 0 to 2^64-1 |
-| `Float32Schema` | `number` | 32-bit float |
-| `Float64Schema` | `number` | 64-bit float |
-
-## Aliases
-
-For convenience, valrs provides these aliases:
-
-| Alias | Points To |
-|-------|-----------|
-| `IntegerSchema` | `Int32Schema` |
-| `DoubleSchema` | `Float64Schema` |
 
 ## Next Steps
 
-- [Custom Schemas](/docs/custom-schemas) - Build validators for complex types
-- [JSON Schema](/docs/json-schema) - Export schemas to JSON Schema format
+- [Objects](/docs/objects) - Object schemas and methods
+- [Collections](/docs/collections) - Arrays, tuples, records
+- [Unions](/docs/unions) - Union types and enums

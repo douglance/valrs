@@ -1,0 +1,465 @@
+---
+title: Objects
+description: Object schemas with powerful transformation and validation methods
+---
+
+# Objects
+
+valrs provides a powerful object schema with methods for transforming shapes, handling unknown keys, and inferring TypeScript types.
+
+## Creating Object Schemas
+
+Create object schemas with `v.object()`:
+
+```typescript
+import { v, type Infer } from 'valrs';
+
+const User = v.object({
+  name: v.string(),
+  age: v.number(),
+  email: v.string().email(),
+});
+
+// Infer the TypeScript type
+type User = Infer<typeof User>;
+// { name: string; age: number; email: string }
+
+User.parse({ name: 'Alice', age: 30, email: 'alice@example.com' });
+// { name: 'Alice', age: 30, email: 'alice@example.com' }
+```
+
+## Accessing the Shape
+
+Use `.shape` to access the underlying shape definition:
+
+```typescript
+const User = v.object({
+  name: v.string(),
+  age: v.number(),
+});
+
+// Access individual property schemas
+const nameSchema = User.shape.name;
+nameSchema.parse('Alice'); // 'Alice'
+
+// Iterate over properties
+for (const key of Object.keys(User.shape)) {
+  console.log(key); // 'name', 'age'
+}
+```
+
+## Object Methods
+
+### extend()
+
+Add new fields to an existing object schema:
+
+```typescript
+const User = v.object({
+  name: v.string(),
+  email: v.string().email(),
+});
+
+const Admin = User.extend({
+  role: v.literal('admin'),
+  permissions: v.array(v.string()),
+});
+
+type Admin = Infer<typeof Admin>;
+// { name: string; email: string; role: 'admin'; permissions: string[] }
+```
+
+### merge()
+
+Merge two object schemas together. Properties from the second schema override properties in the first:
+
+```typescript
+const Person = v.object({
+  name: v.string(),
+  age: v.number(),
+});
+
+const Employee = v.object({
+  employeeId: v.string(),
+  department: v.string(),
+  age: v.string(), // Note: different type
+});
+
+const EmployeePerson = Person.merge(Employee);
+
+type EmployeePerson = Infer<typeof EmployeePerson>;
+// { name: string; employeeId: string; department: string; age: string }
+// Note: age is string (from Employee), not number
+```
+
+### pick()
+
+Create a schema with only the specified keys:
+
+```typescript
+const User = v.object({
+  id: v.string().uuid(),
+  name: v.string(),
+  email: v.string().email(),
+  password: v.string(),
+  createdAt: v.date(),
+});
+
+const PublicUser = User.pick({ id: true, name: true, email: true });
+
+type PublicUser = Infer<typeof PublicUser>;
+// { id: string; name: string; email: string }
+```
+
+### omit()
+
+Create a schema without the specified keys:
+
+```typescript
+const User = v.object({
+  id: v.string().uuid(),
+  name: v.string(),
+  email: v.string().email(),
+  password: v.string(),
+  createdAt: v.date(),
+});
+
+const UserWithoutPassword = User.omit({ password: true });
+
+type UserWithoutPassword = Infer<typeof UserWithoutPassword>;
+// { id: string; name: string; email: string; createdAt: Date }
+```
+
+### partial()
+
+Make all fields optional:
+
+```typescript
+const User = v.object({
+  name: v.string(),
+  age: v.number(),
+  email: v.string().email(),
+});
+
+const PartialUser = User.partial();
+
+type PartialUser = Infer<typeof PartialUser>;
+// { name?: string; age?: number; email?: string }
+
+PartialUser.parse({}); // valid
+PartialUser.parse({ name: 'Alice' }); // valid
+```
+
+This is useful for update operations where you only want to update some fields:
+
+```typescript
+const UpdateUserInput = User.partial();
+
+function updateUser(id: string, updates: Infer<typeof UpdateUserInput>) {
+  // Only update provided fields
+}
+```
+
+### deepPartial()
+
+Make all fields optional recursively, including nested objects:
+
+```typescript
+const User = v.object({
+  name: v.string(),
+  address: v.object({
+    street: v.string(),
+    city: v.string(),
+    country: v.object({
+      code: v.string(),
+      name: v.string(),
+    }),
+  }),
+});
+
+const DeepPartialUser = User.deepPartial();
+
+type DeepPartialUser = Infer<typeof DeepPartialUser>;
+// {
+//   name?: string;
+//   address?: {
+//     street?: string;
+//     city?: string;
+//     country?: {
+//       code?: string;
+//       name?: string;
+//     };
+//   };
+// }
+
+DeepPartialUser.parse({}); // valid
+DeepPartialUser.parse({ address: { city: 'NYC' } }); // valid
+```
+
+### required()
+
+Make all fields required (removes optional modifiers):
+
+```typescript
+const PartialUser = v.object({
+  name: v.string().optional(),
+  age: v.number().optional(),
+  email: v.string().email().optional(),
+});
+
+const RequiredUser = PartialUser.required();
+
+type RequiredUser = Infer<typeof RequiredUser>;
+// { name: string; age: number; email: string }
+
+RequiredUser.parse({ name: 'Alice' }); // throws: age and email are required
+```
+
+## Unknown Key Handling
+
+By default, valrs strips unknown keys from objects. You can change this behavior with these methods:
+
+### strip() (default)
+
+Silently removes unknown keys from the output:
+
+```typescript
+const User = v.object({ name: v.string() }).strip();
+
+User.parse({ name: 'Alice', extra: 'ignored' });
+// { name: 'Alice' }
+```
+
+### passthrough()
+
+Allow unknown keys to pass through without validation:
+
+```typescript
+const User = v.object({ name: v.string() }).passthrough();
+
+User.parse({ name: 'Alice', extra: 'preserved', count: 42 });
+// { name: 'Alice', extra: 'preserved', count: 42 }
+```
+
+This is useful when working with APIs that may add new fields:
+
+```typescript
+const ApiResponse = v.object({
+  id: v.string(),
+  status: v.literal('success'),
+}).passthrough();
+
+// Future API additions won't break parsing
+```
+
+### strict()
+
+Reject any unknown keys with a validation error:
+
+```typescript
+const User = v.object({ name: v.string() }).strict();
+
+User.parse({ name: 'Alice' }); // { name: 'Alice' }
+User.parse({ name: 'Alice', extra: 'value' }); // throws validation error
+```
+
+This is useful for strict API validation:
+
+```typescript
+const CreateUserInput = v.object({
+  name: v.string(),
+  email: v.string().email(),
+}).strict();
+
+// Prevents typos in field names from being silently ignored
+CreateUserInput.parse({ name: 'Alice', emial: 'typo@example.com' }); // throws
+```
+
+### catchall()
+
+Validate unknown keys against a schema:
+
+```typescript
+const Metadata = v.object({
+  id: v.string(),
+  type: v.literal('metrics'),
+}).catchall(v.number());
+
+Metadata.parse({
+  id: 'abc',
+  type: 'metrics',
+  views: 100,
+  clicks: 42,
+  score: 3.14,
+});
+// { id: 'abc', type: 'metrics', views: 100, clicks: 42, score: 3.14 }
+
+Metadata.parse({
+  id: 'abc',
+  type: 'metrics',
+  invalid: 'string', // throws: expected number
+});
+```
+
+This is useful for dynamic key-value structures:
+
+```typescript
+const Config = v.object({
+  version: v.string(),
+}).catchall(v.union([v.string(), v.number(), v.boolean()]));
+```
+
+## keyof()
+
+Get a schema for the literal union of an object's keys:
+
+```typescript
+const User = v.object({
+  name: v.string(),
+  age: v.number(),
+  email: v.string().email(),
+});
+
+const UserKey = User.keyof();
+
+UserKey.parse('name');  // 'name'
+UserKey.parse('age');   // 'age'
+UserKey.parse('email'); // 'email'
+UserKey.parse('other'); // throws
+
+type UserKey = Infer<typeof UserKey>;
+// 'name' | 'age' | 'email'
+```
+
+This is useful for creating type-safe property accessors:
+
+```typescript
+function getUserField(user: Infer<typeof User>, key: Infer<typeof UserKey>) {
+  return user[key];
+}
+```
+
+## Nested Objects
+
+Objects can be nested to any depth:
+
+```typescript
+const Address = v.object({
+  street: v.string(),
+  city: v.string(),
+  zip: v.string().regex(/^\d{5}$/),
+});
+
+const Company = v.object({
+  name: v.string(),
+  address: Address,
+});
+
+const User = v.object({
+  name: v.string(),
+  email: v.string().email(),
+  address: Address,
+  employer: Company.optional(),
+});
+
+type User = Infer<typeof User>;
+// {
+//   name: string;
+//   email: string;
+//   address: { street: string; city: string; zip: string };
+//   employer?: { name: string; address: { ... } };
+// }
+```
+
+## Optional Fields
+
+Use `.optional()` on individual fields:
+
+```typescript
+const User = v.object({
+  name: v.string(),
+  nickname: v.string().optional(),
+  age: v.number().optional(),
+});
+
+type User = Infer<typeof User>;
+// { name: string; nickname?: string; age?: number }
+
+User.parse({ name: 'Alice' }); // valid
+User.parse({ name: 'Alice', nickname: 'Al' }); // valid
+```
+
+## Default Values
+
+Use `.default()` to provide default values:
+
+```typescript
+const Config = v.object({
+  host: v.string().default('localhost'),
+  port: v.number().default(3000),
+  debug: v.boolean().default(false),
+});
+
+Config.parse({});
+// { host: 'localhost', port: 3000, debug: false }
+
+Config.parse({ port: 8080 });
+// { host: 'localhost', port: 8080, debug: false }
+```
+
+## Type Inference Patterns
+
+### Input vs Output Types
+
+Some schemas transform values. Use `InferInput` for input types:
+
+```typescript
+import { v, type Infer, type InferInput } from 'valrs';
+
+const User = v.object({
+  name: v.string().trim(),
+  createdAt: v.coerce.date(),
+});
+
+type UserInput = InferInput<typeof User>;
+// { name: string; createdAt: string | number | Date }
+
+type UserOutput = Infer<typeof User>;
+// { name: string; createdAt: Date }
+```
+
+### Reusing Schemas
+
+Build complex schemas by composing simpler ones:
+
+```typescript
+const Timestamps = v.object({
+  createdAt: v.date(),
+  updatedAt: v.date(),
+});
+
+const SoftDelete = v.object({
+  deletedAt: v.date().optional(),
+});
+
+const BaseEntity = v.object({
+  id: v.string().uuid(),
+}).merge(Timestamps).merge(SoftDelete);
+
+const User = BaseEntity.extend({
+  name: v.string(),
+  email: v.string().email(),
+});
+
+const Post = BaseEntity.extend({
+  title: v.string(),
+  content: v.string(),
+  authorId: v.string().uuid(),
+});
+```
+
+## Next Steps
+
+- [Collections](/docs/collections) - Arrays, tuples, records, maps, sets
+- [Unions](/docs/unions) - Union types, discriminated unions, enums
+- [Custom Schemas](/docs/custom-schemas) - Refinements and transforms

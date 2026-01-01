@@ -1,15 +1,43 @@
 ---
 title: Introduction
-description: High-performance schema validation powered by Rust and WebAssembly
+description: TypeBox performance meets Zod ergonomics - with streaming validation
 ---
 
 # valrs
 
-**valrs** is a schema validation library that implements the [Standard Schema](https://standardschema.dev/) specification. It's written in Rust and compiled to WebAssembly for near-native performance in browsers, with a pure JavaScript fallback for Node.js and other environments.
+**valrs** is a schema validation library that combines TypeBox-level performance with Zod's developer experience. Written in Rust and compiled to WebAssembly, it delivers near-native validation speeds while providing a familiar, chainable API.
 
 ## Why valrs?
 
-### Performance
+### Zod-Compatible API
+
+If you know Zod, you know valrs. The API is designed to be a drop-in replacement:
+
+```typescript
+import { v } from 'valrs';
+
+const User = v.object({
+  name: v.string().min(1).max(100),
+  email: v.string().email(),
+  age: v.number().int().positive(),
+});
+
+// Parse with runtime validation
+const user = User.parse(data);
+
+// Safe parsing (no throws)
+const result = User.safeParse(data);
+if (result.success) {
+  console.log(result.data);
+} else {
+  console.log(result.error);
+}
+
+// Type inference
+type User = v.infer<typeof User>;
+```
+
+### TypeBox-Level Performance
 
 valrs is built in Rust and compiled to WebAssembly, delivering validation speeds competitive with the fastest JavaScript validators:
 
@@ -21,51 +49,76 @@ valrs is built in Rust and compiled to WebAssembly, delivering validation speeds
 | Valibot | 2.11M | 0.10x |
 | Zod | 1.45M | 0.07x |
 
-### Portability
+### Streaming Validation (Killer Feature)
+
+Validate massive JSON files with O(1) memory. No other validation library offers this:
+
+```typescript
+import { v } from 'valrs';
+
+const User = v.object({
+  id: v.number(),
+  name: v.string(),
+});
+
+// Validate a 10GB file with constant memory usage
+const stream = fs.createReadStream('users.json');
+
+for await (const user of v.stream(v.array(User), stream)) {
+  // Each user is validated as it streams through
+  // Memory usage stays constant regardless of file size
+  await processUser(user);
+}
+```
+
+### Full Zod Feature Parity
+
+valrs implements the complete Zod API:
+
+- **Primitives**: string, number, bigint, boolean, date, null, undefined, void, any, unknown, never
+- **Objects**: object, extend, merge, pick, omit, partial, deepPartial, strict, passthrough, strip
+- **Collections**: array, tuple, record, map, set
+- **Unions**: union, discriminatedUnion, intersection, literal, enum, nativeEnum
+- **Modifiers**: optional, nullable, nullish, default, catch
+- **Transforms**: transform, refine, superRefine, pipe, preprocess, coerce
+
+## Quick Migration from Zod
+
+Migrating from Zod is straightforward - change `z` to `v`:
+
+```typescript
+// Before (Zod)
+import { z } from 'zod';
+
+const User = z.object({
+  name: z.string(),
+  email: z.string().email(),
+});
+
+// After (valrs)
+import { v } from 'valrs';
+
+const User = v.object({
+  name: v.string(),
+  email: v.string().email(),
+});
+```
+
+## Portability
 
 - **Browsers**: Uses WebAssembly for maximum performance
 - **Node.js**: Pure JavaScript fallback works everywhere
 - **Edge**: Compatible with Cloudflare Workers and other edge runtimes
 
-### Standards Compliance
+## Standards Compliance
 
-valrs implements the [Standard Schema](https://standardschema.dev/) specification v1, enabling interoperability with any tool that supports the standard. Use valrs schemas with form libraries, API frameworks, and validation utilities that understand Standard Schema.
-
-### Type Safety
-
-Full TypeScript support with type inference. Define your schema once and get compile-time type checking throughout your application.
-
-## Features
-
-- **Primitive validators** - String, number, boolean, integers, and floats
-- **Custom schemas** - Build your own validators with full type safety
-- **JSON Schema generation** - Export to Draft 2020-12, Draft 07, or OpenAPI 3.0
-- **Zero dependencies** - Minimal footprint for your bundle
-
-## Quick Example
-
-```typescript
-import { init, StringSchema, Int32Schema, isValidationSuccess } from 'valrs';
-
-// Initialize WASM (required once before validation)
-await init();
-
-// Validate a string
-const result = StringSchema['~standard'].validate('hello');
-if (isValidationSuccess(result)) {
-  console.log(result.value); // 'hello' (typed as string)
-}
-
-// Handle validation errors
-const invalid = Int32Schema['~standard'].validate('not a number');
-if (!isValidationSuccess(invalid)) {
-  console.log(invalid.issues); // [{ message: 'Expected i32' }]
-}
-```
+valrs implements the [Standard Schema](https://standardschema.dev/) specification v1, enabling interoperability with any tool that supports the standard.
 
 ## Next Steps
 
 - [Getting Started](/docs/getting-started) - Installation and setup
-- [Primitive Types](/docs/primitives) - Built-in validators
-- [Custom Schemas](/docs/custom-schemas) - Build your own validators
+- [Primitives](/docs/primitives) - String, number, boolean, and more
+- [Custom Schemas](/docs/custom-schemas) - Build your own schema types
+- [JSON Schema](/docs/json-schema) - Generate JSON Schema from valrs schemas
+- [Standard Schema](/docs/standard-schema) - Interoperability with Standard Schema v1
 - [API Reference](/docs/api) - Complete API documentation

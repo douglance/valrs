@@ -7,6 +7,36 @@ description: Complete API documentation for valrs
 
 This section provides complete documentation for all valrs exports.
 
+## The `v` Namespace
+
+The `v` namespace is the primary API for valrs, providing a Zod-compatible fluent interface for schema definition and validation.
+
+```typescript
+import { v } from 'valrs';
+
+// Create schemas
+const userSchema = v.object({
+  name: v.string(),
+  age: v.number(),
+});
+
+// Parse and validate
+const user = userSchema.parse({ name: 'Alice', age: 30 });
+
+// Safe parsing (no exceptions)
+const result = userSchema.safeParse(input);
+if (result.success) {
+  console.log(result.data);
+} else {
+  console.log(result.error.issues);
+}
+
+// Type inference
+type User = v.infer<typeof userSchema>;
+```
+
+---
+
 ## Initialization
 
 ### init()
@@ -43,349 +73,1000 @@ if (isInitialized()) {
 
 ## Primitive Schemas
 
-### StringSchema
+### v.string()
 
-Validates string values.
+Creates a schema for string values with validation and transformation methods.
 
 ```typescript
-import { StringSchema } from 'valrs';
-
-StringSchema['~standard'].validate('hello');
-// { value: 'hello' }
-
-StringSchema['~standard'].validate(123);
-// { issues: [{ message: 'Expected string' }] }
+const nameSchema = v.string();
+nameSchema.parse('Alice'); // 'Alice'
+nameSchema.parse(123);     // throws ValError
 ```
 
-**Input Type:** `unknown`
-**Output Type:** `string`
+**Returns:** `ValString`
 
----
+#### String Methods
 
-### NumberSchema
-
-Validates IEEE 754 double-precision floating-point numbers.
+| Method | Description |
+|--------|-------------|
+| `.min(length, message?)` | Minimum length |
+| `.max(length, message?)` | Maximum length |
+| `.length(length, message?)` | Exact length |
+| `.email(message?)` | Valid email format |
+| `.url(message?)` | Valid URL format |
+| `.uuid(message?)` | Valid UUID v4 format |
+| `.cuid(message?)` | Valid CUID format |
+| `.cuid2(message?)` | Valid CUID2 format |
+| `.ulid(message?)` | Valid ULID format |
+| `.datetime(message?)` | Valid ISO 8601 datetime |
+| `.ip(message?)` | Valid IPv4 or IPv6 |
+| `.regex(pattern, message?)` | Match regex pattern |
+| `.includes(substring, message?)` | Contains substring |
+| `.startsWith(prefix, message?)` | Starts with prefix |
+| `.endsWith(suffix, message?)` | Ends with suffix |
+| `.trim()` | Trim whitespace (transform) |
+| `.toLowerCase()` | Convert to lowercase (transform) |
+| `.toUpperCase()` | Convert to uppercase (transform) |
 
 ```typescript
-import { NumberSchema } from 'valrs';
-
-NumberSchema['~standard'].validate(3.14);
-// { value: 3.14 }
+const emailSchema = v.string().email();
+const usernameSchema = v.string().min(3).max(20).trim();
 ```
 
-**Input Type:** `unknown`
-**Output Type:** `number`
-
 ---
 
-### BooleanSchema
+### v.number()
 
-Validates boolean values (`true` or `false`).
+Creates a schema for number values (IEEE 754 double-precision).
 
 ```typescript
-import { BooleanSchema } from 'valrs';
-
-BooleanSchema['~standard'].validate(true);
-// { value: true }
+const ageSchema = v.number();
+ageSchema.parse(25);    // 25
+ageSchema.parse('25');  // throws ValError
 ```
 
-**Input Type:** `unknown`
-**Output Type:** `boolean`
+**Returns:** `ValNumber`
 
----
+#### Number Methods
 
-### Int32Schema
-
-Validates 32-bit signed integers (-2,147,483,648 to 2,147,483,647).
+| Method | Description |
+|--------|-------------|
+| `.min(value, message?)` | Minimum value (inclusive) |
+| `.max(value, message?)` | Maximum value (inclusive) |
+| `.gt(value, message?)` | Greater than |
+| `.gte(value, message?)` | Greater than or equal |
+| `.lt(value, message?)` | Less than |
+| `.lte(value, message?)` | Less than or equal |
+| `.int(message?)` | Must be integer |
+| `.positive(message?)` | Must be positive |
+| `.nonnegative(message?)` | Must be non-negative |
+| `.negative(message?)` | Must be negative |
+| `.nonpositive(message?)` | Must be non-positive |
+| `.multipleOf(value, message?)` | Must be divisible by value |
+| `.finite(message?)` | Must be finite |
+| `.safe(message?)` | Must be safe integer |
 
 ```typescript
-import { Int32Schema } from 'valrs';
-
-Int32Schema['~standard'].validate(42);
-// { value: 42 }
+const ageSchema = v.number().int().positive();
+const scoreSchema = v.number().min(0).max(100);
 ```
 
-**Input Type:** `unknown`
-**Output Type:** `number`
-
 ---
 
-### Int64Schema
+### v.bigint()
 
-Validates 64-bit signed integers.
-
-**Input Type:** `unknown`
-**Output Type:** `number`
-
----
-
-### Uint32Schema
-
-Validates 32-bit unsigned integers (0 to 4,294,967,295).
-
-**Input Type:** `unknown`
-**Output Type:** `number`
-
----
-
-### Uint64Schema
-
-Validates 64-bit unsigned integers.
-
-**Input Type:** `unknown`
-**Output Type:** `number`
-
----
-
-### Float32Schema
-
-Validates 32-bit floating-point numbers.
-
-**Input Type:** `unknown`
-**Output Type:** `number`
-
----
-
-### Float64Schema
-
-Validates 64-bit floating-point numbers (same as `NumberSchema`).
-
-**Input Type:** `unknown`
-**Output Type:** `number`
-
----
-
-### IntegerSchema
-
-Alias for `Int32Schema`.
-
----
-
-### DoubleSchema
-
-Alias for `Float64Schema`.
-
----
-
-## Type Guards
-
-### isValidationSuccess()
-
-Type guard to check if a validation result is successful.
+Creates a schema for BigInt values.
 
 ```typescript
-import { isValidationSuccess } from 'valrs';
+const bigSchema = v.bigint();
+bigSchema.parse(123n);  // 123n
+bigSchema.parse(123);   // throws ValError
+```
 
-const result = StringSchema['~standard'].validate(value);
+**Returns:** `ValBigInt`
 
-if (isValidationSuccess(result)) {
-  // result.value is typed as string
-  console.log(result.value);
+#### BigInt Methods
+
+| Method | Description |
+|--------|-------------|
+| `.min(value, message?)` | Minimum value |
+| `.max(value, message?)` | Maximum value |
+| `.positive(message?)` | Must be positive |
+| `.nonnegative(message?)` | Must be non-negative |
+| `.negative(message?)` | Must be negative |
+| `.nonpositive(message?)` | Must be non-positive |
+
+---
+
+### v.boolean()
+
+Creates a schema for boolean values.
+
+```typescript
+const flagSchema = v.boolean();
+flagSchema.parse(true);    // true
+flagSchema.parse('true');  // throws ValError
+```
+
+**Returns:** `ValBoolean`
+
+---
+
+### v.date()
+
+Creates a schema for Date objects.
+
+```typescript
+const dateSchema = v.date();
+dateSchema.parse(new Date());   // Date object
+dateSchema.parse('2024-01-01'); // throws ValError
+```
+
+**Returns:** `ValDate`
+
+#### Date Methods
+
+| Method | Description |
+|--------|-------------|
+| `.min(date, message?)` | Minimum date |
+| `.max(date, message?)` | Maximum date |
+
+---
+
+### v.null()
+
+Creates a schema that only accepts `null`.
+
+```typescript
+const nullSchema = v.null();
+nullSchema.parse(null);      // null
+nullSchema.parse(undefined); // throws ValError
+```
+
+**Returns:** `ValNull`
+
+---
+
+### v.undefined()
+
+Creates a schema that only accepts `undefined`.
+
+```typescript
+const undefinedSchema = v.undefined();
+undefinedSchema.parse(undefined); // undefined
+undefinedSchema.parse(null);      // throws ValError
+```
+
+**Returns:** `ValUndefined`
+
+---
+
+### v.void()
+
+Creates a schema that accepts `undefined` (alias for undefined, for function return types).
+
+```typescript
+const voidSchema = v.void();
+voidSchema.parse(undefined); // undefined
+```
+
+**Returns:** `ValVoid`
+
+---
+
+### v.any()
+
+Creates a schema that accepts any value. Use sparingly.
+
+```typescript
+const anySchema = v.any();
+anySchema.parse('anything'); // 'anything'
+anySchema.parse(123);        // 123
+```
+
+**Returns:** `ValAny`
+
+---
+
+### v.unknown()
+
+Creates a schema that accepts any value but requires type narrowing before use.
+
+```typescript
+const unknownSchema = v.unknown();
+unknownSchema.parse('anything'); // unknown type
+```
+
+**Returns:** `ValUnknown`
+
+---
+
+### v.never()
+
+Creates a schema that never matches any value. Useful for exhaustive type checking.
+
+```typescript
+const neverSchema = v.never();
+neverSchema.parse(anything); // always throws
+```
+
+**Returns:** `ValNever`
+
+---
+
+## Constructor Schemas
+
+### v.object()
+
+Creates an object schema from a shape definition.
+
+```typescript
+const User = v.object({
+  name: v.string(),
+  age: v.number().int().positive(),
+  email: v.string().email().optional(),
+});
+
+type User = v.infer<typeof User>;
+// { name: string; age: number; email?: string }
+
+const user = User.parse({ name: 'Alice', age: 30 });
+```
+
+**Returns:** `ValObject<T>`
+
+#### Object Methods
+
+| Method | Description |
+|--------|-------------|
+| `.extend(shape)` | Add additional properties |
+| `.merge(schema)` | Merge with another object schema |
+| `.pick(keys)` | Select specific properties |
+| `.omit(keys)` | Exclude specific properties |
+| `.partial()` | Make all properties optional |
+| `.deepPartial()` | Make all properties optional recursively |
+| `.required()` | Make all properties required |
+| `.passthrough()` | Allow unknown properties |
+| `.strict()` | Reject unknown properties |
+| `.strip()` | Remove unknown properties |
+| `.catchall(schema)` | Validate unknown properties with schema |
+| `.keyof()` | Get enum of keys |
+
+```typescript
+const BaseUser = v.object({
+  name: v.string(),
+  age: v.number(),
+});
+
+const ExtendedUser = BaseUser.extend({
+  email: v.string().email(),
+});
+
+const PartialUser = BaseUser.partial();
+const NameOnly = BaseUser.pick(['name']);
+```
+
+---
+
+### v.array()
+
+Creates an array schema for the given element type.
+
+```typescript
+const schema = v.array(v.string());
+schema.parse(['a', 'b', 'c']); // ['a', 'b', 'c']
+
+const withMin = v.array(v.number()).min(1);
+withMin.parse([]);     // throws
+withMin.parse([1, 2]); // [1, 2]
+```
+
+**Returns:** `ValArray<S>`
+
+#### Array Methods
+
+| Method | Description |
+|--------|-------------|
+| `.min(length, message?)` | Minimum array length |
+| `.max(length, message?)` | Maximum array length |
+| `.length(length, message?)` | Exact array length |
+| `.nonempty(message?)` | Array must have at least one item |
+| `.element` | Access the element schema |
+
+---
+
+### v.tuple()
+
+Creates a tuple schema with fixed element types.
+
+```typescript
+const schema = v.tuple([v.string(), v.number()]);
+schema.parse(['hello', 42]); // ['hello', 42]
+
+const withRest = v.tuple([v.string()]).rest(v.number());
+withRest.parse(['hello', 1, 2, 3]); // ['hello', 1, 2, 3]
+```
+
+**Returns:** `ValTuple<T>`
+
+#### Tuple Methods
+
+| Method | Description |
+|--------|-------------|
+| `.rest(schema)` | Allow additional elements of type |
+
+---
+
+### v.record()
+
+Creates a record schema (object with string keys and typed values).
+
+```typescript
+// Record<string, string>
+const dict = v.record(v.string());
+dict.parse({ a: 'hello', b: 'world' }); // OK
+
+// Record<string, number> with explicit key schema
+const counts = v.record(v.string(), v.number());
+counts.parse({ count: 42, score: 100 }); // OK
+```
+
+**Signatures:**
+- `v.record(valueSchema)` - String keys with typed values
+- `v.record(keySchema, valueSchema)` - Typed keys and values
+
+**Returns:** `ValRecord<K, V>`
+
+---
+
+### v.map()
+
+Creates a schema for JavaScript Map objects.
+
+```typescript
+const schema = v.map(v.string(), v.number());
+schema.parse(new Map([['a', 1], ['b', 2]])); // OK
+```
+
+**Returns:** `ValMap<K, V>`
+
+---
+
+### v.set()
+
+Creates a schema for JavaScript Set objects.
+
+```typescript
+const schema = v.set(v.string());
+schema.parse(new Set(['a', 'b', 'c'])); // OK
+```
+
+**Returns:** `ValSet<V>`
+
+---
+
+### v.union()
+
+Creates a union schema (one of multiple types).
+
+```typescript
+const schema = v.union([v.string(), v.number()]);
+schema.parse('hello'); // 'hello'
+schema.parse(42);      // 42
+schema.parse(true);    // throws
+```
+
+**Returns:** `ValUnion<T>`
+
+---
+
+### v.discriminatedUnion()
+
+Creates a discriminated union schema (tagged union) for efficient matching.
+
+```typescript
+const schema = v.discriminatedUnion('type', [
+  v.object({ type: v.literal('a'), value: v.string() }),
+  v.object({ type: v.literal('b'), count: v.number() }),
+]);
+
+schema.parse({ type: 'a', value: 'hello' }); // OK
+schema.parse({ type: 'b', count: 42 });      // OK
+schema.parse({ type: 'c' });                 // throws with helpful error
+```
+
+**Returns:** `ValDiscriminatedUnion<D, T>`
+
+---
+
+### v.intersection()
+
+Creates an intersection schema (all types must match).
+
+```typescript
+const A = v.object({ a: v.string() });
+const B = v.object({ b: v.number() });
+const AB = v.intersection(A, B);
+
+AB.parse({ a: 'hello', b: 42 }); // { a: 'hello', b: 42 }
+```
+
+**Returns:** `ValIntersection<L, R>`
+
+---
+
+### v.literal()
+
+Creates a schema for a single literal value.
+
+```typescript
+const hello = v.literal('hello');
+hello.parse('hello'); // 'hello'
+hello.parse('world'); // throws
+
+const fortyTwo = v.literal(42);
+fortyTwo.parse(42);   // 42
+
+type Hello = v.infer<typeof hello>; // 'hello'
+```
+
+**Returns:** `ValLiteralValue<T>`
+
+---
+
+### v.enum()
+
+Creates an enum schema for a fixed set of string values.
+
+```typescript
+const Role = v.enum(['admin', 'user', 'guest']);
+Role.parse('admin'); // 'admin'
+Role.parse('other'); // throws
+
+type Role = v.infer<typeof Role>; // 'admin' | 'user' | 'guest'
+
+// Access values like an enum
+Role.enum.admin; // 'admin'
+```
+
+**Returns:** `ValEnum<T>`
+
+---
+
+### v.nativeEnum()
+
+Creates a schema for TypeScript native enums.
+
+```typescript
+enum Status { Active, Inactive }
+const schema = v.nativeEnum(Status);
+
+schema.parse(Status.Active);   // 0
+schema.parse(Status.Inactive); // 1
+schema.parse(2);               // throws
+```
+
+**Returns:** `ValNativeEnum<T>`
+
+---
+
+## Utility Functions
+
+### v.preprocess()
+
+Preprocesses input before passing to the schema.
+
+```typescript
+const schema = v.preprocess(
+  (val) => (typeof val === 'string' ? parseInt(val, 10) : val),
+  v.number()
+);
+
+schema.parse('42');  // 42
+schema.parse(42);    // 42
+```
+
+**Parameters:**
+- `preprocessFn: (value: unknown) => Input` - Transform function
+- `schema: ValSchema<Input, Output>` - Schema to validate after preprocessing
+
+**Returns:** `ValPreprocessed<Input, Output>`
+
+---
+
+### v.coerce
+
+Coercion schema builders that attempt to convert input values to the target type before validation.
+
+```typescript
+v.coerce.string().parse(42);           // '42'
+v.coerce.number().parse('42');         // 42
+v.coerce.boolean().parse(1);           // true
+v.coerce.bigint().parse('123');        // 123n
+v.coerce.date().parse('2024-01-01');   // Date object
+```
+
+| Method | Description |
+|--------|-------------|
+| `v.coerce.string()` | Coerce to string using `String()` |
+| `v.coerce.number()` | Coerce to number using `Number()` (fails if NaN) |
+| `v.coerce.boolean()` | Coerce to boolean using `Boolean()` |
+| `v.coerce.bigint()` | Coerce to bigint using `BigInt()` |
+| `v.coerce.date()` | Coerce to Date using `new Date()` |
+
+---
+
+## Streaming Validation
+
+### v.stream()
+
+Streams and validates a JSON array with O(1) memory usage.
+
+```typescript
+import { v, stream } from 'valrs';
+
+const UserSchema = v.object({
+  name: v.string(),
+  age: v.number(),
+});
+
+// Stream from fetch response
+const response = await fetch('/users.json');
+for await (const user of stream(v.array(UserSchema), response.body!)) {
+  console.log(user); // Each user validated as it arrives
+}
+
+// Collect all items
+const users = await stream(v.array(UserSchema), response.body!).toArray();
+```
+
+**Parameters:**
+- `schema: ValArray<S>` - Array schema to validate
+- `input: StreamInput` - ReadableStream, Response, string, or async iterable
+- `options?: StreamOptions` - Optional streaming configuration
+
+**Returns:** `StreamResult<T>` or `StreamResultWithErrors<T>`
+
+#### StreamOptions
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `maxItems` | `number` | Maximum items to process |
+| `maxBytes` | `number \| string` | Maximum bytes (e.g., `'100MB'`) |
+| `timeout` | `number \| string` | Timeout duration (e.g., `'30s'`) |
+| `onError` | `'throw' \| 'skip' \| 'collect'` | Error handling strategy |
+| `highWaterMark` | `number` | Backpressure threshold (default: 16) |
+
+---
+
+### v.streamLines()
+
+Streams and validates NDJSON (newline-delimited JSON) data.
+
+```typescript
+import { v, streamLines } from 'valrs';
+
+const LogEntry = v.object({
+  timestamp: v.string(),
+  level: v.enum(['info', 'warn', 'error']),
+  message: v.string(),
+});
+
+for await (const entry of streamLines(LogEntry, ndjsonStream)) {
+  console.log(entry);
 }
 ```
 
 **Parameters:**
-- `result: ValidationResult<T>` - The validation result to check
+- `schema: ValSchema<unknown, T>` - Schema for each line
+- `input: StreamInput` - Input stream
+- `options?: StreamOptions` - Optional streaming configuration
 
-**Returns:** `result is { value: T }`
-
----
-
-### isValidationFailure()
-
-Type guard to check if a validation result is a failure.
-
-```typescript
-import { isValidationFailure } from 'valrs';
-
-const result = StringSchema['~standard'].validate(value);
-
-if (isValidationFailure(result)) {
-  // result.issues is typed as ValidationIssue[]
-  console.log(result.issues);
-}
-```
-
-**Parameters:**
-- `result: ValidationResult<T>` - The validation result to check
-
-**Returns:** `result is { issues: ValidationIssue[] }`
+**Returns:** `StreamResult<T>`
 
 ---
 
-## Schema Factories
+## ValError Class
 
-### createSchema()
-
-Create a basic schema with custom validation logic.
+Error thrown when `schema.parse()` fails. Contains detailed information about all validation issues.
 
 ```typescript
-import { createSchema } from 'valrs';
-
-const PositiveNumber = createSchema<number>((value) => {
-  if (typeof value !== 'number' || value <= 0) {
-    return { issues: [{ message: 'Expected positive number' }] };
+try {
+  v.string().parse(123);
+} catch (error) {
+  if (error instanceof ValError) {
+    console.log(error.issues);
+    // [{ code: 'invalid_type', path: [], message: 'Expected string, received number', ... }]
   }
-  return { value };
+}
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `issues` | `ReadonlyArray<ValIssue>` | All validation issues |
+| `message` | `string` | Formatted error message |
+| `name` | `'ValError'` | Error name |
+| `firstError` | `ValIssue \| undefined` | First issue, if any |
+
+### Methods
+
+#### format()
+
+Formats errors as a nested object matching the path structure.
+
+```typescript
+const error = new ValError([
+  { message: 'Required', path: ['user', 'name'], code: 'custom' },
+  { message: 'Invalid email', path: ['user', 'email'], code: 'custom' },
+]);
+
+error.format();
+// {
+//   _errors: [],
+//   user: {
+//     _errors: [],
+//     name: { _errors: ['Required'] },
+//     email: { _errors: ['Invalid email'] },
+//   }
+// }
+```
+
+**Returns:** `FormattedError<T>`
+
+---
+
+#### flatten()
+
+Flattens issues into a simple object with form errors and field errors.
+
+```typescript
+error.flatten();
+// {
+//   formErrors: [],
+//   fieldErrors: {
+//     'user.name': ['Required'],
+//     'user.email': ['Invalid email'],
+//   }
+// }
+```
+
+**Returns:** `FlattenedError<T>`
+
+---
+
+#### hasErrorAt(path)
+
+Checks if there are errors at the specified path.
+
+```typescript
+error.hasErrorAt(['user', 'email']); // true
+error.hasErrorAt(['items', 0, 'name']); // false
+```
+
+**Parameters:**
+- `path: ReadonlyArray<string | number>` - Path to check
+
+**Returns:** `boolean`
+
+---
+
+#### errorsAt(path)
+
+Gets all errors at the specified path.
+
+```typescript
+const emailErrors = error.errorsAt(['user', 'email']);
+// [{ code: 'custom', path: ['user', 'email'], message: 'Invalid email' }]
+```
+
+**Parameters:**
+- `path: ReadonlyArray<string | number>` - Path to check
+
+**Returns:** `ReadonlyArray<ValIssue>`
+
+---
+
+#### addIssue(issue)
+
+Returns a new ValError with an additional issue.
+
+```typescript
+const newError = error.addIssue({
+  code: 'custom',
+  path: ['field'],
+  message: 'Custom error',
 });
 ```
 
-**Type Parameters:**
-- `Input` - The expected input type (default: `unknown`)
-- `Output` - The validated output type (default: same as `Input`)
-
-**Parameters:**
-- `validateFn: (value: unknown) => ValidationResult<Output>` - The validation function
-
-**Returns:** `StandardSchemaV1<Input, Output>`
+**Returns:** `ValError`
 
 ---
 
-### createSchemaWithJsonSchema()
+#### addIssues(issues)
 
-Create a schema with JSON Schema generation support.
+Returns a new ValError with additional issues.
 
 ```typescript
-import { createSchemaWithJsonSchema } from 'valrs';
-
-const EmailSchema = createSchemaWithJsonSchema<string>(
-  (value) => {
-    if (typeof value !== 'string') {
-      return { issues: [{ message: 'Expected string' }] };
-    }
-    return { value };
-  },
-  (options) => ({
-    type: 'string',
-    format: 'email',
-  })
-);
+const newError = error.addIssues(otherError.issues);
 ```
 
-**Type Parameters:**
-- `Input` - The expected input type
-- `Output` - The validated output type (default: same as `Input`)
-
-**Parameters:**
-- `validateFn: (value: unknown) => ValidationResult<Output>` - The validation function
-- `jsonSchemaFn: (options: JsonSchemaOptions) => Record<string, unknown>` - The JSON Schema generator
-
-**Returns:** `StandardJSONSchemaV1<Input, Output>`
+**Returns:** `ValError`
 
 ---
 
-### createSchemaWithSeparateJsonSchemas()
+### Static Methods
 
-Create a schema with separate input and output JSON Schema generators.
+#### ValError.isValError(value)
+
+Type guard to check if a value is a ValError instance.
 
 ```typescript
-import { createSchemaWithSeparateJsonSchemas } from 'valrs';
-
-const DateSchema = createSchemaWithSeparateJsonSchemas<string, Date>(
-  (value) => { /* validation */ },
-  (options) => ({ type: 'string', format: 'date-time' }),  // input schema
-  (options) => ({ type: 'object' })  // output schema
-);
+if (ValError.isValError(error)) {
+  console.log(error.issues);
+}
 ```
 
-**Parameters:**
-- `validateFn` - The validation function
-- `inputSchemaFn` - JSON Schema generator for input type
-- `outputSchemaFn` - JSON Schema generator for output type
-
-**Returns:** `StandardJSONSchemaV1<Input, Output>`
+**Returns:** `value is ValError`
 
 ---
 
-## Result Helpers
+#### ValError.fromValIssues(issues)
 
-### success()
-
-Create a successful validation result.
+Creates a ValError directly from ValIssue array.
 
 ```typescript
-import { success } from 'valrs';
-
-return success(42);
-// { value: 42 }
-```
-
-**Parameters:**
-- `value: T` - The validated value
-
-**Returns:** `{ value: T }`
-
----
-
-### failure()
-
-Create a failed validation result with multiple issues.
-
-```typescript
-import { failure } from 'valrs';
-
-return failure([
-  { message: 'Field required', path: ['name'] },
-  { message: 'Invalid format', path: ['email'] },
+const error = ValError.fromValIssues([
+  { code: 'custom', path: [], message: 'Error' }
 ]);
 ```
 
-**Parameters:**
-- `issues: ValidationIssue[]` - Array of validation issues
-
-**Returns:** `{ issues: ValidationIssue[] }`
+**Returns:** `ValError`
 
 ---
 
-### fail()
+## Issue Codes
 
-Create a failed validation result with a single issue.
+All possible Zod-compatible validation error codes:
 
-```typescript
-import { fail } from 'valrs';
-
-return fail('Invalid input');
-// { issues: [{ message: 'Invalid input' }] }
-
-return fail('Invalid item', ['items', 0]);
-// { issues: [{ message: 'Invalid item', path: ['items', 0] }] }
-```
-
-**Parameters:**
-- `message: string` - The error message
-- `path?: (string | number)[]` - Optional path to the invalid value
-
-**Returns:** `{ issues: ValidationIssue[] }`
-
----
-
-## Constants
-
-### VENDOR
-
-The vendor name for valrs schemas.
-
-```typescript
-import { VENDOR } from 'valrs';
-
-console.log(VENDOR); // 'valrs'
-```
-
-**Value:** `'valrs'`
+| Code | Description |
+|------|-------------|
+| `invalid_type` | Type mismatch |
+| `invalid_literal` | Literal value mismatch |
+| `custom` | Custom validation error |
+| `invalid_union` | No union variant matched |
+| `invalid_union_discriminator` | Invalid discriminator value |
+| `invalid_enum_value` | Invalid enum value |
+| `unrecognized_keys` | Unknown object keys |
+| `invalid_arguments` | Invalid function arguments |
+| `invalid_return_type` | Invalid function return |
+| `invalid_date` | Invalid Date |
+| `invalid_string` | String format validation failed |
+| `too_small` | Value too small |
+| `too_big` | Value too big |
+| `invalid_intersection_types` | Intersection type mismatch |
+| `not_multiple_of` | Not a multiple of value |
+| `not_finite` | Not a finite number |
 
 ---
 
-### VERSION
+## Error Map
 
-The Standard Schema version implemented by valrs.
+Customize error messages globally or per-validation.
+
+### setErrorMap()
+
+Sets a global error map for all validations.
 
 ```typescript
-import { VERSION } from 'valrs';
+import { setErrorMap } from 'valrs';
 
-console.log(VERSION); // 1
+setErrorMap((issue, ctx) => {
+  if (issue.code === 'invalid_type') {
+    return `Expected ${issue.expected}, got ${issue.received}`;
+  }
+  return ctx.defaultError;
+});
 ```
 
-**Value:** `1`
+---
+
+### getErrorMap()
+
+Gets the current global error map.
+
+```typescript
+const currentMap = getErrorMap();
+```
+
+---
+
+### resetErrorMap()
+
+Resets the global error map to undefined.
+
+```typescript
+resetErrorMap();
+```
+
+---
+
+## Schema Methods
+
+All schemas inherit these methods from `ValSchema`:
+
+### parse(value)
+
+Validates and returns the value, throwing `ValError` on failure.
+
+```typescript
+const result = schema.parse(input);
+```
+
+---
+
+### safeParse(value)
+
+Validates and returns a result object (never throws).
+
+```typescript
+const result = schema.safeParse(input);
+
+if (result.success) {
+  console.log(result.data);
+} else {
+  console.log(result.error.issues);
+}
+```
+
+**Returns:** `SafeParseResult<T>`
+
+---
+
+### optional()
+
+Makes the schema accept `undefined`.
+
+```typescript
+const schema = v.string().optional();
+type T = v.infer<typeof schema>; // string | undefined
+```
+
+---
+
+### nullable()
+
+Makes the schema accept `null`.
+
+```typescript
+const schema = v.string().nullable();
+type T = v.infer<typeof schema>; // string | null
+```
+
+---
+
+### nullish()
+
+Makes the schema accept `null` or `undefined`.
+
+```typescript
+const schema = v.string().nullish();
+type T = v.infer<typeof schema>; // string | null | undefined
+```
+
+---
+
+### default(value)
+
+Provides a default value for `undefined` inputs.
+
+```typescript
+const schema = v.string().default('anonymous');
+schema.parse(undefined); // 'anonymous'
+```
+
+---
+
+### catch(value)
+
+Provides a fallback value on validation failure.
+
+```typescript
+const schema = v.number().catch(0);
+schema.parse('invalid'); // 0
+```
+
+---
+
+### transform(fn)
+
+Transforms the validated value.
+
+```typescript
+const schema = v.string().transform((s) => s.length);
+type T = v.infer<typeof schema>; // number
+```
+
+---
+
+### refine(fn, message?)
+
+Adds a custom validation predicate.
+
+```typescript
+const schema = v.string().refine(
+  (s) => s.includes('@'),
+  'Must contain @'
+);
+```
+
+---
+
+### superRefine(fn)
+
+Adds a custom validation with full context access.
+
+```typescript
+const schema = v.object({
+  password: v.string(),
+  confirm: v.string(),
+}).superRefine((data, ctx) => {
+  if (data.password !== data.confirm) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['confirm'],
+      message: 'Passwords must match',
+    });
+  }
+});
+```
+
+---
+
+### pipe(schema)
+
+Chains another schema after this one.
+
+```typescript
+const schema = v.string().pipe(v.coerce.number());
+```
+
+---
+
+## Type Inference
+
+### v.infer\<T\>
+
+Infers the output type from a schema.
+
+```typescript
+const schema = v.object({
+  name: v.string(),
+  age: v.number(),
+});
+
+type User = v.infer<typeof schema>;
+// { name: string; age: number }
+```
+
+---
+
+### v.input\<T\>
+
+Infers the input type from a schema (useful when input differs from output).
+
+```typescript
+const schema = v.coerce.number();
+type Input = v.input<typeof schema>;   // unknown
+type Output = v.output<typeof schema>; // number
+```
+
+---
+
+### v.output\<T\>
+
+Infers the output type from a schema (alias for `v.infer`).
 
 ---
 

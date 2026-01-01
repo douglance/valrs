@@ -7,7 +7,734 @@ description: TypeScript type definitions for valrs
 
 Complete TypeScript type definitions exported by valrs.
 
-## Core Types
+## Type Inference Utilities
+
+### v.infer\<T\>
+
+Infers the output type from a schema. This is the primary type inference utility, matching Zod's `z.infer`.
+
+```typescript
+type infer<T extends ValSchema<unknown, unknown>> =
+  T extends ValSchema<unknown, infer O> ? O : never;
+```
+
+**Usage:**
+
+```typescript
+import { v } from 'valrs';
+
+const userSchema = v.object({
+  name: v.string(),
+  age: v.number(),
+  email: v.string().email(),
+});
+
+// Infer the output type
+type User = v.infer<typeof userSchema>;
+// { name: string; age: number; email: string }
+
+// Works with all schema types
+const arraySchema = v.array(v.string());
+type StringArray = v.infer<typeof arraySchema>; // string[]
+
+const unionSchema = v.union([v.string(), v.number()]);
+type StringOrNumber = v.infer<typeof unionSchema>; // string | number
+```
+
+---
+
+### v.input\<T\>
+
+Infers the input type from a schema. Use this when the input type differs from the output type (e.g., with coercion or transforms).
+
+```typescript
+type input<T extends ValSchema<unknown, unknown>> =
+  T extends ValSchema<infer I, unknown> ? I : never;
+```
+
+**Usage:**
+
+```typescript
+import { v } from 'valrs';
+
+// With coercion, input differs from output
+const schema = v.coerce.number();
+type Input = v.input<typeof schema>;   // unknown
+type Output = v.output<typeof schema>; // number
+
+// With transforms
+const dateSchema = v.string().transform((s) => new Date(s));
+type DateInput = v.input<typeof dateSchema>;  // string
+type DateOutput = v.output<typeof dateSchema>; // Date
+```
+
+---
+
+### v.output\<T\>
+
+Infers the output type from a schema. This is an alias for `v.infer` that provides symmetry with `v.input`.
+
+```typescript
+type output<T extends ValSchema<unknown, unknown>> = Infer<T>;
+```
+
+**Usage:**
+
+```typescript
+import { v } from 'valrs';
+
+const schema = v.string().transform((s) => s.length);
+
+type Input = v.input<typeof schema>;   // string
+type Output = v.output<typeof schema>; // number (same as v.infer)
+```
+
+---
+
+## SafeParse Result Types
+
+### SafeParseResult\<T\>
+
+The result of a `safeParse()` call. A discriminated union that is either a success or failure.
+
+```typescript
+type SafeParseResult<T> = SafeParseSuccess<T> | SafeParseError;
+```
+
+**Usage:**
+
+```typescript
+import { v } from 'valrs';
+
+const schema = v.string().min(3);
+const result = schema.safeParse(input);
+
+if (result.success) {
+  // TypeScript knows result.data is string
+  console.log(result.data.toUpperCase());
+} else {
+  // TypeScript knows result.error is ValError
+  console.log(result.error.issues);
+}
+```
+
+---
+
+### SafeParseSuccess\<T\>
+
+The result of a successful `safeParse()` call.
+
+```typescript
+interface SafeParseSuccess<T> {
+  readonly success: true;
+  readonly data: T;
+  readonly error?: undefined;
+}
+```
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `success` | `true` | Discriminator indicating success |
+| `data` | `T` | The validated and parsed value |
+| `error` | `undefined` | Always undefined on success |
+
+---
+
+### SafeParseError
+
+The result of a failed `safeParse()` call.
+
+```typescript
+interface SafeParseError {
+  readonly success: false;
+  readonly error: ValError;
+  readonly data?: undefined;
+}
+```
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `success` | `false` | Discriminator indicating failure |
+| `error` | `ValError` | The error containing validation issues |
+| `data` | `undefined` | Always undefined on failure |
+
+---
+
+### Type Guards
+
+```typescript
+import { v, isSafeParseSuccess, isSafeParseError } from 'valrs';
+
+const result = v.string().safeParse(input);
+
+// Using type guards
+if (isSafeParseSuccess(result)) {
+  console.log(result.data);
+}
+
+if (isSafeParseError(result)) {
+  console.log(result.error.message);
+}
+```
+
+---
+
+## Error Types
+
+### ValError
+
+Error class thrown when `schema.parse()` fails. Contains detailed information about all validation issues with Zod-compatible error codes and formatting methods.
+
+```typescript
+class ValError extends Error {
+  readonly name: 'ValError';
+  readonly issues: ReadonlyArray<ValIssue>;
+
+  constructor(issues: ReadonlyArray<ValidationIssue>);
+
+  // Instance methods
+  get firstError(): ValIssue | undefined;
+  hasErrorAt(path: ReadonlyArray<string | number>): boolean;
+  errorsAt(path: ReadonlyArray<string | number>): ReadonlyArray<ValIssue>;
+  format<T = unknown>(): FormattedError<T>;
+  flatten<T = unknown>(): FlattenedError<T>;
+  addIssue(issue: ValIssue): ValError;
+  addIssues(issues: ReadonlyArray<ValIssue>): ValError;
+
+  // Static methods
+  static fromValIssues(issues: ReadonlyArray<ValIssue>): ValError;
+  static isValError(value: unknown): value is ValError;
+}
+```
+
+**Usage:**
+
+```typescript
+import { v, ValError } from 'valrs';
+
+try {
+  v.string().parse(123);
+} catch (error) {
+  if (error instanceof ValError) {
+    // Access all issues
+    console.log(error.issues);
+    // [{ code: 'invalid_type', path: [], message: '...', expected: 'string', received: 'number' }]
+
+    // Get first error
+    console.log(error.firstError?.message);
+
+    // Check for errors at a specific path
+    if (error.hasErrorAt(['user', 'email'])) {
+      const emailErrors = error.errorsAt(['user', 'email']);
+    }
+
+    // Format as nested object
+    console.log(error.format());
+    // { _errors: ['Expected string, received number'] }
+
+    // Flatten for form handling
+    console.log(error.flatten());
+    // { formErrors: ['Expected string, received number'], fieldErrors: {} }
+  }
+}
+```
+
+---
+
+### ValIssue
+
+Union of all issue types. Each issue has a `code` discriminator that determines its shape.
+
+```typescript
+type ValIssue =
+  | InvalidTypeIssue
+  | InvalidLiteralIssue
+  | CustomIssue
+  | InvalidUnionIssue
+  | InvalidUnionDiscriminatorIssue
+  | InvalidEnumValueIssue
+  | UnrecognizedKeysIssue
+  | InvalidArgumentsIssue
+  | InvalidReturnTypeIssue
+  | InvalidDateIssue
+  | InvalidStringIssue
+  | TooSmallIssue
+  | TooBigIssue
+  | InvalidIntersectionTypesIssue
+  | NotMultipleOfIssue
+  | NotFiniteIssue;
+```
+
+---
+
+### ValIssueCode
+
+All possible Zod-compatible validation error codes.
+
+```typescript
+type ValIssueCode =
+  | 'invalid_type'
+  | 'invalid_literal'
+  | 'custom'
+  | 'invalid_union'
+  | 'invalid_union_discriminator'
+  | 'invalid_enum_value'
+  | 'unrecognized_keys'
+  | 'invalid_arguments'
+  | 'invalid_return_type'
+  | 'invalid_date'
+  | 'invalid_string'
+  | 'too_small'
+  | 'too_big'
+  | 'invalid_intersection_types'
+  | 'not_multiple_of'
+  | 'not_finite';
+```
+
+---
+
+### ValIssueBase
+
+Base interface for all validation issues.
+
+```typescript
+interface ValIssueBase {
+  readonly code: ValIssueCode;
+  readonly path: ReadonlyArray<string | number>;
+  readonly message: string;
+}
+```
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `code` | `ValIssueCode` | The error code identifying the issue type |
+| `path` | `(string \| number)[]` | Path to the invalid value |
+| `message` | `string` | Human-readable error message |
+
+---
+
+## Specific Issue Types
+
+### InvalidTypeIssue
+
+Issue for type validation failures.
+
+```typescript
+interface InvalidTypeIssue extends ValIssueBase {
+  readonly code: 'invalid_type';
+  readonly expected: string;
+  readonly received: string;
+}
+```
+
+**Example:**
+
+```typescript
+// When parsing: v.string().parse(123)
+{
+  code: 'invalid_type',
+  expected: 'string',
+  received: 'number',
+  path: [],
+  message: 'Expected string, received number'
+}
+```
+
+---
+
+### TooSmallIssue
+
+Issue for values that are too small (strings, numbers, arrays, sets, dates, bigints).
+
+```typescript
+interface TooSmallIssue extends ValIssueBase {
+  readonly code: 'too_small';
+  readonly type: SizeType;
+  readonly minimum: number | bigint;
+  readonly inclusive: boolean;
+  readonly exact?: boolean | undefined;
+}
+
+type SizeType = 'string' | 'number' | 'array' | 'set' | 'date' | 'bigint';
+```
+
+**Example:**
+
+```typescript
+// When parsing: v.string().min(5).parse('hi')
+{
+  code: 'too_small',
+  type: 'string',
+  minimum: 5,
+  inclusive: true,
+  path: [],
+  message: 'String must be at least 5 characters'
+}
+```
+
+---
+
+### TooBigIssue
+
+Issue for values that are too big.
+
+```typescript
+interface TooBigIssue extends ValIssueBase {
+  readonly code: 'too_big';
+  readonly type: SizeType;
+  readonly maximum: number | bigint;
+  readonly inclusive: boolean;
+  readonly exact?: boolean | undefined;
+}
+```
+
+**Example:**
+
+```typescript
+// When parsing: v.number().max(100).parse(150)
+{
+  code: 'too_big',
+  type: 'number',
+  maximum: 100,
+  inclusive: true,
+  path: [],
+  message: 'Value must be at most 100'
+}
+```
+
+---
+
+### InvalidStringIssue
+
+Issue for invalid string format.
+
+```typescript
+interface InvalidStringIssue extends ValIssueBase {
+  readonly code: 'invalid_string';
+  readonly validation:
+    | StringValidation
+    | { readonly includes: string; readonly position?: number }
+    | { readonly startsWith: string }
+    | { readonly endsWith: string };
+}
+
+type StringValidation =
+  | 'email'
+  | 'url'
+  | 'emoji'
+  | 'uuid'
+  | 'cuid'
+  | 'cuid2'
+  | 'ulid'
+  | 'regex'
+  | 'datetime'
+  | 'ip'
+  | 'base64';
+```
+
+**Example:**
+
+```typescript
+// When parsing: v.string().email().parse('not-an-email')
+{
+  code: 'invalid_string',
+  validation: 'email',
+  path: [],
+  message: 'Invalid email'
+}
+```
+
+---
+
+### InvalidEnumValueIssue
+
+Issue for enum validation failures.
+
+```typescript
+interface InvalidEnumValueIssue extends ValIssueBase {
+  readonly code: 'invalid_enum_value';
+  readonly options: ReadonlyArray<string | number>;
+  readonly received: unknown;
+}
+```
+
+**Example:**
+
+```typescript
+// When parsing: v.enum(['red', 'green', 'blue']).parse('yellow')
+{
+  code: 'invalid_enum_value',
+  options: ['red', 'green', 'blue'],
+  received: 'yellow',
+  path: [],
+  message: 'Invalid enum value. Expected "red" | "green" | "blue", received "yellow"'
+}
+```
+
+---
+
+### InvalidUnionIssue
+
+Issue for union validation failures.
+
+```typescript
+interface InvalidUnionIssue extends ValIssueBase {
+  readonly code: 'invalid_union';
+  readonly unionErrors: ReadonlyArray<ValError>;
+}
+```
+
+---
+
+### InvalidUnionDiscriminatorIssue
+
+Issue for discriminated union validation failures.
+
+```typescript
+interface InvalidUnionDiscriminatorIssue extends ValIssueBase {
+  readonly code: 'invalid_union_discriminator';
+  readonly options: ReadonlyArray<string | number>;
+}
+```
+
+---
+
+### UnrecognizedKeysIssue
+
+Issue for unrecognized object keys (when using `.strict()`).
+
+```typescript
+interface UnrecognizedKeysIssue extends ValIssueBase {
+  readonly code: 'unrecognized_keys';
+  readonly keys: ReadonlyArray<string>;
+}
+```
+
+**Example:**
+
+```typescript
+// When parsing: v.object({ name: v.string() }).strict().parse({ name: 'Alice', extra: true })
+{
+  code: 'unrecognized_keys',
+  keys: ['extra'],
+  path: [],
+  message: "Unrecognized key(s) in object: 'extra'"
+}
+```
+
+---
+
+### InvalidLiteralIssue
+
+Issue for literal value validation failures.
+
+```typescript
+interface InvalidLiteralIssue extends ValIssueBase {
+  readonly code: 'invalid_literal';
+  readonly expected: unknown;
+  readonly received: unknown;
+}
+```
+
+---
+
+### CustomIssue
+
+Issue for custom validation failures (from `.refine()` or `.superRefine()`).
+
+```typescript
+interface CustomIssue extends ValIssueBase {
+  readonly code: 'custom';
+  readonly params?: Record<string, unknown> | undefined;
+}
+```
+
+---
+
+### NotMultipleOfIssue
+
+Issue for values that are not a multiple of a given number.
+
+```typescript
+interface NotMultipleOfIssue extends ValIssueBase {
+  readonly code: 'not_multiple_of';
+  readonly multipleOf: number;
+}
+```
+
+---
+
+### NotFiniteIssue
+
+Issue for non-finite number values.
+
+```typescript
+interface NotFiniteIssue extends ValIssueBase {
+  readonly code: 'not_finite';
+}
+```
+
+---
+
+### InvalidDateIssue
+
+Issue for invalid Date values.
+
+```typescript
+interface InvalidDateIssue extends ValIssueBase {
+  readonly code: 'invalid_date';
+}
+```
+
+---
+
+### InvalidArgumentsIssue
+
+Issue for invalid function arguments.
+
+```typescript
+interface InvalidArgumentsIssue extends ValIssueBase {
+  readonly code: 'invalid_arguments';
+  readonly argumentsError: ValError;
+}
+```
+
+---
+
+### InvalidReturnTypeIssue
+
+Issue for invalid function return type.
+
+```typescript
+interface InvalidReturnTypeIssue extends ValIssueBase {
+  readonly code: 'invalid_return_type';
+  readonly returnTypeError: ValError;
+}
+```
+
+---
+
+### InvalidIntersectionTypesIssue
+
+Issue for intersection type validation failures.
+
+```typescript
+interface InvalidIntersectionTypesIssue extends ValIssueBase {
+  readonly code: 'invalid_intersection_types';
+}
+```
+
+---
+
+## Error Formatting Types
+
+### FormattedError\<T\>
+
+Type for the nested error format returned by `ValError.format()`.
+
+```typescript
+type FormattedError<T = unknown> = {
+  _errors: string[];
+} & (T extends object
+  ? { [K in keyof T]?: FormattedError<T[K]> }
+  : unknown);
+```
+
+**Usage:**
+
+```typescript
+const error = new ValError([
+  { message: 'Required', path: ['user', 'name'], code: 'custom' },
+  { message: 'Invalid email', path: ['user', 'email'], code: 'custom' },
+]);
+
+error.format();
+// {
+//   _errors: [],
+//   user: {
+//     _errors: [],
+//     name: { _errors: ['Required'] },
+//     email: { _errors: ['Invalid email'] },
+//   }
+// }
+```
+
+---
+
+### FlattenedError\<T\>
+
+Type for the flattened error format returned by `ValError.flatten()`.
+
+```typescript
+interface FlattenedError<T = unknown> {
+  formErrors: string[];
+  fieldErrors: T extends object
+    ? { [K in keyof T]?: string[] }
+    : { [key: string]: string[] };
+}
+```
+
+**Usage:**
+
+```typescript
+const error = new ValError([
+  { message: 'Required', path: ['name'], code: 'custom' },
+  { message: 'Form-level error', path: [], code: 'custom' },
+]);
+
+error.flatten();
+// {
+//   formErrors: ['Form-level error'],
+//   fieldErrors: {
+//     name: ['Required'],
+//   }
+// }
+```
+
+---
+
+## Error Map Types
+
+### ErrorMapFn
+
+Function type for custom error messages.
+
+```typescript
+type ErrorMapFn = (issue: ValIssue, ctx: ErrorMapContext) => string;
+```
+
+---
+
+### ErrorMapContext
+
+Context provided to error map functions.
+
+```typescript
+interface ErrorMapContext {
+  readonly defaultError: string;
+  readonly data: unknown;
+}
+```
+
+**Usage:**
+
+```typescript
+import { v } from 'valrs';
+
+v.setErrorMap((issue, ctx) => {
+  if (issue.code === 'invalid_type') {
+    return `Expected ${issue.expected}, got ${issue.received}`;
+  }
+  if (issue.code === 'too_small' && issue.type === 'string') {
+    return `Must be at least ${issue.minimum} characters`;
+  }
+  return ctx.defaultError;
+});
+```
+
+---
+
+## Standard Schema Types
 
 ### StandardSchemaV1
 
@@ -62,7 +789,7 @@ type ValidationResult<T> =
 
 ### ValidationIssue
 
-Describes why validation failed.
+Describes why validation failed (Standard Schema format).
 
 ```typescript
 interface ValidationIssue {
@@ -109,8 +836,6 @@ interface JsonSchemaOptions {
 
 ---
 
-## Utility Types
-
 ### InferInput
 
 Infer the input type from a Standard Schema.
@@ -153,72 +878,54 @@ type StringOutput = InferOutput<typeof StringSchema>;
 
 ---
 
-## Using Types
-
-### Generic Validation Functions
-
-```typescript
-import type { StandardSchemaV1, InferOutput, ValidationResult } from 'valrs';
-
-function validate<T extends StandardSchemaV1>(
-  schema: T,
-  value: unknown
-): InferOutput<T> | null {
-  const result = schema['~standard'].validate(value);
-
-  if ('value' in result && result.value !== undefined) {
-    return result.value;
-  }
-
-  return null;
-}
-
-// Usage
-const name = validate(StringSchema, 'hello');
-// name is typed as string | null
-```
-
-### Type-Safe Error Handling
-
-```typescript
-import type { ValidationResult, ValidationIssue } from 'valrs';
-
-function formatErrors<T>(result: ValidationResult<T>): string[] {
-  if ('value' in result && result.value !== undefined) {
-    return [];
-  }
-
-  return result.issues.map((issue: ValidationIssue) => {
-    const path = issue.path?.join('.') ?? 'root';
-    return `${path}: ${issue.message}`;
-  });
-}
-```
-
-### Schema Collection Types
-
-```typescript
-import type { StandardSchemaV1 } from 'valrs';
-
-interface SchemaMap {
-  [key: string]: StandardSchemaV1;
-}
-
-const schemas: SchemaMap = {
-  name: StringSchema,
-  age: Int32Schema,
-  active: BooleanSchema,
-};
-```
-
----
-
 ## Exports
 
 All types are exported from the main package:
 
 ```typescript
 import type {
+  // Type inference
+  Infer,
+  infer,
+  input,
+  output,
+
+  // SafeParse types
+  SafeParseResult,
+  SafeParseSuccess,
+  SafeParseError,
+
+  // Issue types
+  ValIssueCode,
+  ValIssueBase,
+  ValIssue,
+  InvalidTypeIssue,
+  InvalidLiteralIssue,
+  CustomIssue,
+  InvalidUnionIssue,
+  InvalidUnionDiscriminatorIssue,
+  InvalidEnumValueIssue,
+  UnrecognizedKeysIssue,
+  InvalidArgumentsIssue,
+  InvalidReturnTypeIssue,
+  InvalidDateIssue,
+  InvalidStringIssue,
+  TooSmallIssue,
+  TooBigIssue,
+  InvalidIntersectionTypesIssue,
+  NotMultipleOfIssue,
+  NotFiniteIssue,
+  SizeType,
+  StringValidation,
+
+  // Error formatting
+  FormattedError,
+  FlattenedError,
+  ErrorMapFn,
+  ErrorMapContext,
+  SchemaErrorOptions,
+
+  // Standard Schema types
   StandardSchemaV1,
   StandardJSONSchemaV1,
   ValidationResult,
@@ -228,4 +935,7 @@ import type {
   InferInput,
   InferOutput,
 } from 'valrs';
+
+// ValError is a value export (class)
+import { ValError } from 'valrs';
 ```

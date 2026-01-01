@@ -1,0 +1,478 @@
+---
+title: Unions
+description: Union types, discriminated unions, enums, and type modifiers
+---
+
+# Unions
+
+valrs provides comprehensive support for union types, discriminated unions, enums, and type modifiers to handle complex type compositions.
+
+## Union
+
+Create a union of multiple schemas with `v.union()`:
+
+```typescript
+import { v } from 'valrs';
+
+const schema = v.union([v.string(), v.number()]);
+
+schema.parse('hello'); // 'hello'
+schema.parse(42);      // 42
+schema.parse(true);    // throws ValError
+
+type StringOrNumber = v.infer<typeof schema>; // string | number
+```
+
+Unions try each schema in order and return the first successful match.
+
+### Complex Unions
+
+```typescript
+const ResponseSchema = v.union([
+  v.object({ status: v.literal('success'), data: v.string() }),
+  v.object({ status: v.literal('error'), message: v.string() }),
+]);
+
+type Response = v.infer<typeof ResponseSchema>;
+// { status: 'success'; data: string } | { status: 'error'; message: string }
+```
+
+## Discriminated Union
+
+For tagged unions with a shared discriminator property, use `v.discriminatedUnion()`:
+
+```typescript
+import { v } from 'valrs';
+
+const EventSchema = v.discriminatedUnion('type', [
+  v.object({ type: v.literal('click'), x: v.number(), y: v.number() }),
+  v.object({ type: v.literal('keypress'), key: v.string() }),
+  v.object({ type: v.literal('scroll'), delta: v.number() }),
+]);
+
+EventSchema.parse({ type: 'click', x: 100, y: 200 });     // OK
+EventSchema.parse({ type: 'keypress', key: 'Enter' });    // OK
+EventSchema.parse({ type: 'unknown' });                    // throws with helpful error
+
+type Event = v.infer<typeof EventSchema>;
+// { type: 'click'; x: number; y: number }
+// | { type: 'keypress'; key: string }
+// | { type: 'scroll'; delta: number }
+```
+
+Discriminated unions provide:
+- **Better performance**: Checks the discriminator first instead of trying all schemas
+- **Better error messages**: Reports invalid discriminator values instead of generic union errors
+
+### API Response Pattern
+
+```typescript
+const ApiResponse = v.discriminatedUnion('status', [
+  v.object({
+    status: v.literal('success'),
+    data: v.object({ id: v.string(), name: v.string() }),
+  }),
+  v.object({
+    status: v.literal('error'),
+    code: v.number(),
+    message: v.string(),
+  }),
+  v.object({
+    status: v.literal('loading'),
+  }),
+]);
+
+function handleResponse(response: v.infer<typeof ApiResponse>) {
+  switch (response.status) {
+    case 'success':
+      console.log(response.data.name); // TypeScript knows data exists
+      break;
+    case 'error':
+      console.log(response.message);   // TypeScript knows message exists
+      break;
+    case 'loading':
+      console.log('Loading...');
+      break;
+  }
+}
+```
+
+## Intersection
+
+Combine multiple schemas with `v.intersection()`:
+
+```typescript
+import { v } from 'valrs';
+
+const Person = v.object({ name: v.string() });
+const Employee = v.object({ employeeId: v.number() });
+
+const PersonEmployee = v.intersection(Person, Employee);
+
+PersonEmployee.parse({ name: 'Alice', employeeId: 123 }); // OK
+PersonEmployee.parse({ name: 'Alice' });                   // throws
+
+type PersonEmployee = v.infer<typeof PersonEmployee>;
+// { name: string } & { employeeId: number }
+```
+
+### Extending Types
+
+```typescript
+const Timestamped = v.object({
+  createdAt: v.date(),
+  updatedAt: v.date(),
+});
+
+const User = v.object({
+  id: v.string(),
+  email: v.string().email(),
+});
+
+const TimestampedUser = v.intersection(User, Timestamped);
+
+type TimestampedUser = v.infer<typeof TimestampedUser>;
+// { id: string; email: string; createdAt: Date; updatedAt: Date }
+```
+
+## Literal
+
+Create schemas for exact literal values with `v.literal()`:
+
+```typescript
+import { v } from 'valrs';
+
+// String literal
+const hello = v.literal('hello');
+hello.parse('hello'); // 'hello'
+hello.parse('world'); // throws
+
+type Hello = v.infer<typeof hello>; // 'hello'
+
+// Number literal
+const answer = v.literal(42);
+answer.parse(42); // 42
+answer.parse(43); // throws
+
+// Boolean literal
+const yes = v.literal(true);
+yes.parse(true);  // true
+yes.parse(false); // throws
+
+// Null literal
+const nil = v.literal(null);
+nil.parse(null);      // null
+nil.parse(undefined); // throws
+```
+
+### Literal Unions
+
+```typescript
+const Direction = v.union([
+  v.literal('north'),
+  v.literal('south'),
+  v.literal('east'),
+  v.literal('west'),
+]);
+
+type Direction = v.infer<typeof Direction>; // 'north' | 'south' | 'east' | 'west'
+```
+
+## Enum
+
+Create string enum schemas with `v.enum()`:
+
+```typescript
+import { v } from 'valrs';
+
+const Role = v.enum(['admin', 'user', 'guest']);
+
+Role.parse('admin'); // 'admin'
+Role.parse('user');  // 'user'
+Role.parse('other'); // throws
+
+type Role = v.infer<typeof Role>; // 'admin' | 'user' | 'guest'
+```
+
+### Enum Object Access
+
+The enum schema provides an `enum` property for accessing values:
+
+```typescript
+const Status = v.enum(['pending', 'active', 'completed']);
+
+// Access values like a TypeScript enum
+Status.enum.pending;   // 'pending'
+Status.enum.active;    // 'active'
+Status.enum.completed; // 'completed'
+
+// Use in code
+function setStatus(status: v.infer<typeof Status>) {
+  if (status === Status.enum.pending) {
+    console.log('Waiting...');
+  }
+}
+```
+
+### Options Property
+
+Access all enum values via the `options` property:
+
+```typescript
+const Priority = v.enum(['low', 'medium', 'high']);
+
+Priority.options; // readonly ['low', 'medium', 'high']
+
+// Iterate over options
+Priority.options.forEach(priority => {
+  console.log(priority);
+});
+```
+
+## Native Enum
+
+Use TypeScript native enums with `v.nativeEnum()`:
+
+```typescript
+import { v } from 'valrs';
+
+// Numeric enum
+enum Status {
+  Active,
+  Inactive,
+  Pending,
+}
+
+const StatusSchema = v.nativeEnum(Status);
+
+StatusSchema.parse(Status.Active);   // 0
+StatusSchema.parse(0);               // 0
+StatusSchema.parse('Active');        // throws (numeric enum)
+
+type StatusType = v.infer<typeof StatusSchema>; // Status
+
+// String enum
+enum Color {
+  Red = 'red',
+  Green = 'green',
+  Blue = 'blue',
+}
+
+const ColorSchema = v.nativeEnum(Color);
+
+ColorSchema.parse(Color.Red); // 'red'
+ColorSchema.parse('red');     // 'red'
+ColorSchema.parse('purple');  // throws
+```
+
+### Const Enum Alternative
+
+For const enums (which are erased at compile time), use `v.enum()` instead:
+
+```typescript
+// Instead of const enum
+const STATUS = {
+  Active: 'active',
+  Inactive: 'inactive',
+} as const;
+
+const StatusSchema = v.enum(['active', 'inactive']);
+```
+
+## Schema Methods
+
+### `.or()` - Union Method
+
+Create unions using method chaining:
+
+```typescript
+const schema = v.string().or(v.number());
+schema.parse('hello'); // 'hello'
+schema.parse(42);      // 42
+
+type T = v.infer<typeof schema>; // string | number
+
+// Chain multiple
+const multi = v.string().or(v.number()).or(v.boolean());
+type Multi = v.infer<typeof multi>; // string | number | boolean
+```
+
+### `.and()` - Intersection Method
+
+Create intersections using method chaining:
+
+```typescript
+const A = v.object({ a: v.string() });
+const B = v.object({ b: v.number() });
+
+const AB = A.and(B);
+
+AB.parse({ a: 'hello', b: 42 }); // OK
+
+type AB = v.infer<typeof AB>; // { a: string } & { b: number }
+```
+
+## Type Modifiers
+
+### `.optional()`
+
+Makes a schema accept `undefined`:
+
+```typescript
+const schema = v.string().optional();
+
+schema.parse('hello');   // 'hello'
+schema.parse(undefined); // undefined
+schema.parse(null);      // throws
+
+type T = v.infer<typeof schema>; // string | undefined
+
+// Check if optional
+schema.isOptional(); // true
+```
+
+### `.nullable()`
+
+Makes a schema accept `null`:
+
+```typescript
+const schema = v.string().nullable();
+
+schema.parse('hello'); // 'hello'
+schema.parse(null);    // null
+schema.parse(undefined); // throws
+
+type T = v.infer<typeof schema>; // string | null
+
+// Check if nullable
+schema.isNullable(); // true
+```
+
+### `.nullish()`
+
+Makes a schema accept both `null` and `undefined`:
+
+```typescript
+const schema = v.string().nullish();
+
+schema.parse('hello');   // 'hello'
+schema.parse(null);      // null
+schema.parse(undefined); // undefined
+
+type T = v.infer<typeof schema>; // string | null | undefined
+
+// Both return true
+schema.isOptional(); // true
+schema.isNullable(); // true
+```
+
+### `.default()`
+
+Provides a default value when input is `undefined`:
+
+```typescript
+const schema = v.string().default('anonymous');
+
+schema.parse('hello');   // 'hello'
+schema.parse(undefined); // 'anonymous'
+
+type T = v.infer<typeof schema>; // string (not string | undefined)
+```
+
+Supports factory functions for dynamic defaults:
+
+```typescript
+let counter = 0;
+const schema = v.string().default(() => `user-${++counter}`);
+
+schema.parse(undefined); // 'user-1'
+schema.parse(undefined); // 'user-2'
+schema.parse('custom');  // 'custom'
+```
+
+### `.catch()`
+
+Provides a fallback value when parsing fails:
+
+```typescript
+const schema = v.number().catch(0);
+
+schema.parse(42);             // 42
+schema.parse('not a number'); // 0
+schema.parse(undefined);      // 0
+schema.parse(null);           // 0
+
+type T = v.infer<typeof schema>; // number
+```
+
+Supports factory functions:
+
+```typescript
+const schema = v.number().catch(() => Math.random());
+
+schema.parse('invalid'); // random number
+```
+
+### Combining Modifiers
+
+```typescript
+// Optional with default
+const withDefault = v.string().optional().default('fallback');
+// Input: string | undefined, Output: string
+
+// Nullable with catch
+const safeParse = v.number().nullable().catch(null);
+// Always returns number | null, never throws
+
+// Complex combination
+const config = v.object({
+  name: v.string(),
+  port: v.number().optional().default(3000),
+  debug: v.boolean().catch(false),
+  apiKey: v.string().nullish(),
+});
+
+type Config = v.infer<typeof config>;
+// {
+//   name: string;
+//   port: number;
+//   debug: boolean;
+//   apiKey: string | null | undefined;
+// }
+```
+
+## Type Inference
+
+All union types are fully inferred:
+
+```typescript
+import { v, type Infer } from 'valrs';
+
+const Schema = v.discriminatedUnion('kind', [
+  v.object({
+    kind: v.literal('text'),
+    content: v.string(),
+  }),
+  v.object({
+    kind: v.literal('image'),
+    url: v.string().url(),
+    alt: v.string().optional(),
+  }),
+]);
+
+// Using v.infer
+type Message = v.infer<typeof Schema>;
+
+// Or using Infer type
+type Message2 = Infer<typeof Schema>;
+
+// Both produce:
+// { kind: 'text'; content: string }
+// | { kind: 'image'; url: string; alt?: string }
+```
+
+## Next Steps
+
+- [Objects](/docs/objects) - Object schemas and methods
+- [Collections](/docs/collections) - Arrays, tuples, records
+- [Custom Schemas](/docs/custom-schemas) - Transforms and refinements

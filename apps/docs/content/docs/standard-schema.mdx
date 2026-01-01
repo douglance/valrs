@@ -5,95 +5,131 @@ description: How valrs implements the Standard Schema specification
 
 # Standard Schema Compliance
 
-valrs implements the [Standard Schema](https://standardschema.dev/) specification v1, enabling interoperability with any tool that supports the standard.
+valrs implements the [Standard Schema](https://standardschema.dev/) specification v1, enabling seamless interoperability with any tool or library that supports the standard.
 
 ## What is Standard Schema?
 
-Standard Schema is a specification that defines a common interface for schema validation libraries. By implementing this interface, valrs schemas can be used with any tool that understands Standard Schema - form libraries, API frameworks, validation utilities, and more.
+Standard Schema is an open specification that defines a common interface for schema validation libraries. It solves a fundamental problem in the JavaScript ecosystem: validation libraries have historically been incompatible with each other, forcing framework authors to write adapters for each library they want to support.
 
-## The Interface
+With Standard Schema, any compliant library can work with any compliant tool. This means:
 
-Every valrs schema implements the `StandardSchemaV1` interface:
+- **Form libraries** can validate using valrs, Zod, Valibot, or any other compliant library
+- **API frameworks** can accept schemas from any compliant source
+- **Documentation tools** can generate specs from any compliant schema
+- **You** can switch validation libraries without rewriting your integration code
+
+## How valrs Implements Standard Schema
+
+Every valrs schema exposes the Standard Schema interface through the `~standard` property. This is an internal implementation detail that enables interoperability while keeping the public API clean.
+
+### The `~standard` Interface
+
+The `~standard` property is a namespaced object (using the `~` prefix to avoid conflicts) that contains everything a Standard Schema consumer needs:
 
 ```typescript
 interface StandardSchemaV1<Input = unknown, Output = Input> {
   readonly '~standard': {
     readonly version: 1;
     readonly vendor: string;
-    readonly validate: (value: unknown) => ValidationResult<Output>;
+    readonly validate: (
+      value: unknown
+    ) => ValidationResult<Output> | Promise<ValidationResult<Output>>;
   };
 }
 ```
 
-### Properties
-
 | Property | Type | Description |
 |----------|------|-------------|
-| `version` | `1` | The Standard Schema version |
-| `vendor` | `string` | The library name (`'valrs'`) |
-| `validate` | `function` | The validation function |
+| `version` | `1` | The Standard Schema specification version |
+| `vendor` | `string` | The library identifier (`'valrs'`) |
+| `validate` | `function` | Validates unknown input, returning sync or async result |
 
-### Validation Result
+### Validation Results
 
-The `validate` function returns a discriminated union:
+The `validate` function returns a discriminated union that cleanly separates success from failure:
 
 ```typescript
 type ValidationResult<T> =
-  | { readonly value: T; readonly issues?: undefined }  // Success
+  | { readonly value: T; readonly issues?: undefined }      // Success
   | { readonly issues: ReadonlyArray<ValidationIssue>; readonly value?: undefined }; // Failure
+```
 
+When validation succeeds, the result contains the typed `value`. When it fails, the result contains an array of `issues` describing what went wrong:
+
+```typescript
 interface ValidationIssue {
   readonly message: string;
-  readonly path?: ReadonlyArray<string | number | { key: string | number }>;
+  readonly path?: ReadonlyArray<PathSegment>;
+}
+
+type PathSegment = string | number | { readonly key: string | number };
+```
+
+### Type Guards
+
+valrs exports type guards for working with validation results:
+
+```typescript
+import { isValidationSuccess, isValidationFailure } from 'valrs';
+
+const result = schema['~standard'].validate(data);
+
+if (isValidationSuccess(result)) {
+  // result.value is typed correctly
+  console.log(result.value);
+}
+
+if (isValidationFailure(result)) {
+  // result.issues is available
+  console.error(result.issues);
 }
 ```
 
-## Using valrs with Standard Schema Tools
+## Interoperability with Other Libraries
 
-### Type Constraints
+The power of Standard Schema is that valrs works seamlessly alongside other compliant libraries like Zod and Valibot.
 
-Use `StandardSchemaV1` as a type constraint to accept any compliant schema:
+### Writing Library-Agnostic Code
+
+Any function that accepts `StandardSchemaV1` will work with valrs:
 
 ```typescript
 import type { StandardSchemaV1, InferOutput } from 'valrs';
 
-function validate<T extends StandardSchemaV1>(
+async function validate<T extends StandardSchemaV1>(
   schema: T,
   value: unknown
-): InferOutput<T> | null {
-  const result = schema['~standard'].validate(value);
-  if ('value' in result) {
-    return result.value;
-  }
-  return null;
+): Promise<InferOutput<T> | null> {
+  const result = await schema['~standard'].validate(value);
+  return result.issues === undefined ? result.value : null;
 }
 
-// Works with any valrs schema
-validate(StringSchema, 'hello');
-validate(Int32Schema, 42);
-validate(CustomSchema, data);
+// Works with any compliant schema
+await validate(StringSchema, 'hello');     // valrs
+await validate(z.string(), 'hello');       // zod
+await validate(v.string(), 'hello');       // valibot
 ```
 
-### Interoperability Example
+### Mixed Schema Collections
+
+You can mix schemas from different libraries in the same application:
 
 ```typescript
-import { StringSchema } from 'valrs';
+import { StringSchema, Int32Schema } from 'valrs';
 import { z } from 'zod';
 import * as v from 'valibot';
 
-// All these schemas implement StandardSchemaV1
-const schemas = [
+// All implement StandardSchemaV1
+const schemas: StandardSchemaV1[] = [
   StringSchema,              // valrs
-  z.string(),                // zod
-  v.string(),                // valibot
+  z.number().positive(),     // zod
+  v.email(),                 // valibot
 ];
 
-// A generic function that works with any Standard Schema
-function validateAll<T extends StandardSchemaV1>(
-  schema: T,
-  values: unknown[]
-) {
-  return values.map(value => schema['~standard'].validate(value));
+// Process uniformly
+for (const schema of schemas) {
+  const result = schema['~standard'].validate(input);
+  // Handle result...
 }
 ```
 
@@ -113,55 +149,44 @@ interface StandardJSONSchemaV1<Input = unknown, Output = Input>
 }
 ```
 
-This allows tools to generate JSON Schema definitions from your valrs schemas:
+This enables tools to generate JSON Schema from your valrs schemas:
 
 ```typescript
 import { StringSchema } from 'valrs';
 
-// Check if schema supports JSON Schema generation
-if ('jsonSchema' in StringSchema['~standard']) {
-  const schema = StringSchema['~standard'].jsonSchema.input({
-    target: 'draft-2020-12'
-  });
-  console.log(schema); // { type: 'string' }
-}
+const jsonSchema = StringSchema['~standard'].jsonSchema.input({
+  target: 'draft-2020-12'
+});
+console.log(jsonSchema); // { type: 'string' }
 ```
 
 ## Type Inference
 
-valrs exports utility types for inferring input and output types:
+valrs exports utility types for extracting input and output types from any Standard Schema:
 
 ```typescript
 import type { InferInput, InferOutput, StandardSchemaV1 } from 'valrs';
 
-// Infer types from a schema
+// Infer types from valrs schemas
 type StringInput = InferInput<typeof StringSchema>;   // string
 type StringOutput = InferOutput<typeof StringSchema>; // string
 
-// Works with custom schemas too
+// Works with transforming schemas
 const TransformSchema = createSchema<string, number>(/* ... */);
 type TransformInput = InferInput<typeof TransformSchema>;   // string
 type TransformOutput = InferOutput<typeof TransformSchema>; // number
-```
 
-## Vendor Information
-
-valrs identifies itself through the `vendor` property:
-
-```typescript
-import { StringSchema, VENDOR, VERSION } from 'valrs';
-
-console.log(StringSchema['~standard'].vendor);  // 'valrs'
-console.log(StringSchema['~standard'].version); // 1
-
-// Or use the exported constants
-console.log(VENDOR);  // 'valrs'
-console.log(VERSION); // 1
+// Works in generic contexts
+function getDefault<T extends StandardSchemaV1>(
+  schema: T
+): InferOutput<T> | undefined {
+  // ...
+}
 ```
 
 ## Checking Schema Compliance
 
-You can check if an object implements Standard Schema:
+You can check if an unknown object implements Standard Schema:
 
 ```typescript
 function isStandardSchema(obj: unknown): obj is StandardSchemaV1 {
@@ -169,52 +194,27 @@ function isStandardSchema(obj: unknown): obj is StandardSchemaV1 {
     typeof obj === 'object' &&
     obj !== null &&
     '~standard' in obj &&
-    typeof (obj as any)['~standard'] === 'object' &&
-    (obj as any)['~standard'].version === 1 &&
-    typeof (obj as any)['~standard'].validate === 'function'
+    typeof (obj as Record<string, unknown>)['~standard'] === 'object' &&
+    (obj as { '~standard': { version: unknown } })['~standard'].version === 1 &&
+    typeof (obj as { '~standard': { validate: unknown } })['~standard'].validate === 'function'
   );
 }
 
 // Usage
 if (isStandardSchema(unknownSchema)) {
-  const result = unknownSchema['~standard'].validate(data);
+  const result = await unknownSchema['~standard'].validate(data);
 }
 ```
 
-## Benefits of Standard Schema
+## Why the `~standard` Property?
 
-### 1. Library Agnostic
+The `~` prefix is intentional. It:
 
-Write validation utilities that work with any Standard Schema library:
+1. **Avoids conflicts** with user-defined properties
+2. **Signals internal use** - consumers should use the public API when available
+3. **Enables interoperability** without polluting the schema object's namespace
 
-```typescript
-// This function works with valrs, Zod, Valibot, and more
-async function validateForm<T extends StandardSchemaV1>(
-  schema: T,
-  formData: FormData
-): Promise<InferOutput<T>> {
-  const data = Object.fromEntries(formData);
-  const result = schema['~standard'].validate(data);
-
-  if ('issues' in result && result.issues) {
-    throw new ValidationError(result.issues);
-  }
-
-  return result.value;
-}
-```
-
-### 2. Ecosystem Compatibility
-
-Frameworks that support Standard Schema automatically work with valrs:
-
-- Form libraries can validate using valrs schemas
-- API frameworks can use valrs for request validation
-- Documentation tools can generate specs from valrs schemas
-
-### 3. Future Proof
-
-As the Standard Schema specification evolves, valrs will maintain compatibility while adding new features.
+You typically do not need to access `~standard` directly when using valrs. The public API (`parse`, `safeParse`, etc.) is more ergonomic. The `~standard` interface exists for framework and library authors who need to work with schemas generically.
 
 ## Next Steps
 

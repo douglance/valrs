@@ -1,263 +1,367 @@
 ---
 title: Custom Schemas
-description: Create your own validators with full type safety
+description: Extend validators with refinements, transforms, and preprocessing
 ---
 
 # Custom Schemas
 
-While valrs provides built-in primitive validators, you'll often need to validate complex data structures or add custom constraints. valrs provides factory functions to create type-safe custom schemas.
+While valrs provides built-in primitive validators, you'll often need to add custom constraints, transform values, or preprocess input. valrs provides a Zod-compatible fluent API for these operations.
 
-## Basic Custom Schema
+## Refinements
 
-Use `createSchema` to create a validator with custom logic:
+Use `.refine()` to add custom validation logic that doesn't change the type:
 
 ```typescript
-import { createSchema, isValidationSuccess } from 'valrs';
+import { v } from 'valrs';
 
-const PositiveNumber = createSchema<number>((value) => {
-  if (typeof value !== 'number') {
-    return { issues: [{ message: 'Expected a number' }] };
-  }
-  if (value <= 0) {
-    return { issues: [{ message: 'Must be positive' }] };
-  }
-  return { value };
-});
+// Simple refinement with message
+const NonEmptyString = v.string().refine(
+  s => s.length > 0,
+  'Required'
+);
 
-// Use it like any other schema
-const result = PositiveNumber['~standard'].validate(42);
-if (isValidationSuccess(result)) {
-  console.log(result.value); // 42 (typed as number)
+NonEmptyString.parse('hello'); // 'hello'
+NonEmptyString.parse('');      // throws ValError: Required
+
+// Refinement with options
+const Email = v.string().refine(
+  s => s.includes('@') && s.includes('.'),
+  { message: 'Invalid email format', path: ['email'] }
+);
+
+const result = Email.safeParse('user@example.com');
+if (result.success) {
+  console.log(result.data); // 'user@example.com'
 }
 ```
 
-### Input vs Output Types
+### Multiple Refinements
 
-When your validator transforms the input, specify both types:
+Chain refinements for multiple validation rules:
 
 ```typescript
-const StringToNumber = createSchema<string, number>((value) => {
-  if (typeof value !== 'string') {
-    return { issues: [{ message: 'Expected a string' }] };
-  }
+const Password = v.string()
+  .refine(s => s.length >= 8, 'Must be at least 8 characters')
+  .refine(s => /[A-Z]/.test(s), 'Must contain uppercase letter')
+  .refine(s => /[0-9]/.test(s), 'Must contain number');
 
-  const parsed = parseFloat(value);
-  if (isNaN(parsed)) {
-    return { issues: [{ message: 'Invalid number format' }] };
-  }
+Password.parse('MyPass123'); // 'MyPass123'
+Password.parse('weak');      // throws ValError
+```
 
-  return { value: parsed };
+## SuperRefine
+
+Use `.superRefine()` when you need to add multiple validation issues at once:
+
+```typescript
+import { v } from 'valrs';
+
+const PasswordWithDetails = v.string().superRefine((val, ctx) => {
+  if (val.length < 8) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Password must be at least 8 characters',
+    });
+  }
+  if (!/[A-Z]/.test(val)) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Password must contain an uppercase letter',
+    });
+  }
+  if (!/[0-9]/.test(val)) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Password must contain a number',
+    });
+  }
 });
 
-const result = StringToNumber['~standard'].validate('3.14');
-if (isValidationSuccess(result)) {
-  console.log(result.value); // 3.14 (typed as number)
+// All issues are collected, not just the first one
+const result = PasswordWithDetails.safeParse('weak');
+if (!result.success) {
+  console.log(result.error.issues);
+  // [
+  //   { message: 'Password must be at least 8 characters' },
+  //   { message: 'Password must contain an uppercase letter' },
+  //   { message: 'Password must contain a number' }
+  // ]
 }
 ```
 
-## Schema with JSON Schema Support
+### Adding Path Information
 
-Use `createSchemaWithJsonSchema` to add JSON Schema generation:
+Include paths for nested validation errors:
 
 ```typescript
-import { createSchemaWithJsonSchema } from 'valrs';
-
-const EmailSchema = createSchemaWithJsonSchema<string>(
-  // Validation function
-  (value) => {
-    if (typeof value !== 'string') {
-      return { issues: [{ message: 'Expected string' }] };
-    }
-    if (!value.includes('@') || !value.includes('.')) {
-      return { issues: [{ message: 'Invalid email format' }] };
-    }
-    return { value };
-  },
-  // JSON Schema generator
-  (options) => ({
-    type: 'string',
-    format: 'email',
-  })
-);
-
-// Use for validation
-EmailSchema['~standard'].validate('user@example.com');
-
-// Generate JSON Schema
-const jsonSchema = EmailSchema['~standard'].jsonSchema.input({
-  target: 'draft-2020-12'
+const UserSchema = v.object({
+  password: v.string(),
+  confirmPassword: v.string(),
+}).superRefine((val, ctx) => {
+  if (val.password !== val.confirmPassword) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Passwords do not match',
+      path: ['confirmPassword'],
+    });
+  }
 });
-// { type: 'string', format: 'email' }
 ```
 
-### Separate Input/Output JSON Schemas
+## Transform
 
-When input and output types differ, provide separate schema generators:
+Use `.transform()` to change the output type after validation:
 
 ```typescript
-import { createSchemaWithSeparateJsonSchemas } from 'valrs';
+import { v } from 'valrs';
 
-const DateSchema = createSchemaWithSeparateJsonSchemas<string, Date>(
-  // Validation function
-  (value) => {
-    if (typeof value !== 'string') {
-      return { issues: [{ message: 'Expected string' }] };
-    }
-    const date = new Date(value);
-    if (isNaN(date.getTime())) {
-      return { issues: [{ message: 'Invalid date format' }] };
-    }
-    return { value: date };
-  },
-  // Input JSON Schema (what the API accepts)
-  (options) => ({
-    type: 'string',
-    format: 'date-time',
-  }),
-  // Output JSON Schema (what the validator produces)
-  (options) => ({
-    type: 'object',
-    description: 'JavaScript Date object',
-  })
+// Parse string to number
+const StringToNumber = v.string().transform(s => parseInt(s, 10));
+
+StringToNumber.parse('42');  // 42 (number)
+StringToNumber.parse('abc'); // NaN (validation passed, transform ran)
+
+// Type inference works correctly
+type Input = v.input<typeof StringToNumber>;   // string
+type Output = v.output<typeof StringToNumber>; // number
+```
+
+### Validate After Transform with Pipe
+
+Use `.pipe()` to validate the transformed value:
+
+```typescript
+// Parse string to number, then validate it's positive
+const PositiveFromString = v.string()
+  .transform(s => parseInt(s, 10))
+  .pipe(v.number().positive());
+
+PositiveFromString.parse('42');  // 42
+PositiveFromString.parse('-5');  // throws: must be positive
+PositiveFromString.parse('abc'); // throws: NaN is not positive
+```
+
+### Common Transform Patterns
+
+```typescript
+// Trim whitespace
+const TrimmedString = v.string().transform(s => s.trim());
+
+// Parse JSON
+const JsonObject = v.string().transform(s => JSON.parse(s));
+
+// Normalize email
+const NormalizedEmail = v.string()
+  .transform(s => s.toLowerCase().trim());
+
+// Parse date
+const DateFromString = v.string()
+  .transform(s => new Date(s))
+  .refine(d => !isNaN(d.getTime()), 'Invalid date');
+```
+
+## Preprocess
+
+Use `v.preprocess()` to transform input **before** validation. This is useful for coercing types:
+
+```typescript
+import { v } from 'valrs';
+
+// Coerce anything to string before validation
+const CoercedString = v.preprocess(
+  val => String(val),
+  v.string()
 );
+
+CoercedString.parse(42);     // '42'
+CoercedString.parse(true);   // 'true'
+CoercedString.parse('hello'); // 'hello'
+
+// Parse numbers from various formats
+const FlexibleNumber = v.preprocess(
+  val => {
+    if (typeof val === 'string') return parseFloat(val);
+    if (typeof val === 'number') return val;
+    return NaN;
+  },
+  v.number()
+);
+
+FlexibleNumber.parse('3.14'); // 3.14
+FlexibleNumber.parse(42);     // 42
 ```
 
-## Result Helpers
+### Preprocess vs Transform
 
-valrs provides helper functions to create validation results:
+- **preprocess**: Runs **before** validation, input type is `unknown`
+- **transform**: Runs **after** validation, input type is validated
 
 ```typescript
-import { success, failure, fail } from 'valrs';
+// Preprocess: coerce before validation
+const PreprocessedNumber = v.preprocess(
+  val => Number(val),
+  v.number().positive()
+);
+PreprocessedNumber.parse('42'); // 42 (coerced, then validated)
 
-// Create a success result
-success(42);
-// { value: 42 }
+// Transform: validate then change
+const TransformedNumber = v.string()
+  .transform(s => Number(s))
+  .pipe(v.number().positive());
+TransformedNumber.parse('42'); // 42 (validated as string, transformed, validated again)
+```
 
-// Create a failure with multiple issues
-failure([
-  { message: 'Field is required', path: ['name'] },
-  { message: 'Must be at least 18', path: ['age'] },
-]);
-// { issues: [...] }
+## Async Validation
 
-// Create a failure with a single issue
-fail('Invalid input');
-// { issues: [{ message: 'Invalid input' }] }
+All refinement and transform methods support async operations:
 
-fail('Invalid item', ['items', 0]);
-// { issues: [{ message: 'Invalid item', path: ['items', 0] }] }
+```typescript
+import { v } from 'valrs';
+
+// Async refinement
+const UniqueUsername = v.string().refine(
+  async (username) => {
+    const exists = await checkUsernameExists(username);
+    return !exists;
+  },
+  'Username already taken'
+);
+
+// Must use parseAsync for async schemas
+const result = await UniqueUsername.parseAsync('newuser');
+
+// Async transform
+const UserFromId = v.string().transform(async (id) => {
+  return await fetchUser(id);
+});
+
+const user = await UserFromId.parseAsync('user-123');
+```
+
+### Safe Async Parsing
+
+```typescript
+const result = await UniqueUsername.safeParseAsync('newuser');
+if (result.success) {
+  console.log(result.data);
+} else {
+  console.log(result.error.issues);
+}
 ```
 
 ## Complex Object Validation
 
-Build validators for complex objects by composing primitives:
+Combine refinements with object schemas for cross-field validation:
 
 ```typescript
-import { createSchema, StringSchema, Int32Schema, isValidationSuccess, fail } from 'valrs';
+import { v } from 'valrs';
 
-interface User {
-  name: string;
-  age: number;
-  email: string;
-}
-
-const UserSchema = createSchema<unknown, User>((value) => {
-  if (typeof value !== 'object' || value === null) {
-    return fail('Expected an object');
+const RegistrationSchema = v.object({
+  email: v.string().refine(
+    s => s.includes('@'),
+    'Invalid email'
+  ),
+  password: v.string().refine(
+    s => s.length >= 8,
+    'Password too short'
+  ),
+  confirmPassword: v.string(),
+  age: v.number().int().positive(),
+}).superRefine((data, ctx) => {
+  if (data.password !== data.confirmPassword) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Passwords do not match',
+      path: ['confirmPassword'],
+    });
   }
-
-  const obj = value as Record<string, unknown>;
-  const issues = [];
-
-  // Validate name
-  const nameResult = StringSchema['~standard'].validate(obj.name);
-  if (!isValidationSuccess(nameResult)) {
-    issues.push({ message: 'name: Expected string', path: ['name'] });
+  if (data.age < 18) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Must be 18 or older to register',
+      path: ['age'],
+    });
   }
-
-  // Validate age
-  const ageResult = Int32Schema['~standard'].validate(obj.age);
-  if (!isValidationSuccess(ageResult)) {
-    issues.push({ message: 'age: Expected integer', path: ['age'] });
-  }
-
-  // Validate email
-  if (typeof obj.email !== 'string' || !obj.email.includes('@')) {
-    issues.push({ message: 'email: Invalid email', path: ['email'] });
-  }
-
-  if (issues.length > 0) {
-    return { issues };
-  }
-
-  return {
-    value: {
-      name: (nameResult as { value: string }).value,
-      age: (ageResult as { value: number }).value,
-      email: obj.email as string,
-    }
-  };
 });
+
+type Registration = v.infer<typeof RegistrationSchema>;
+// { email: string; password: string; confirmPassword: string; age: number }
 ```
 
 ## Best Practices
 
-### 1. Return Early on Type Errors
+### 1. Use the Right Tool
 
 ```typescript
-const MySchema = createSchema<number>((value) => {
-  // Check type first
-  if (typeof value !== 'number') {
-    return fail('Expected a number');
-  }
+// Simple boolean check → refine
+v.string().refine(s => s.length > 0, 'Required');
 
-  // Now TypeScript knows value is a number
-  if (value < 0) {
-    return fail('Must be non-negative');
-  }
-
-  return { value };
+// Multiple issues → superRefine
+v.string().superRefine((val, ctx) => {
+  // Add multiple issues
 });
+
+// Change the type → transform
+v.string().transform(s => parseInt(s, 10));
+
+// Coerce before validation → preprocess
+v.preprocess(val => String(val), v.string());
 ```
 
-### 2. Use Descriptive Error Messages
+### 2. Validate After Transform
 
 ```typescript
-// Bad
-return fail('Invalid');
+// Bad: transform can produce invalid values
+const Risky = v.string().transform(s => parseInt(s, 10));
+Risky.parse('abc'); // NaN - no validation!
 
-// Good
-return fail('Age must be between 0 and 150');
+// Good: validate the transformed value
+const Safe = v.string()
+  .transform(s => parseInt(s, 10))
+  .pipe(v.number().int());
+Safe.parse('abc'); // throws: NaN is not an integer
 ```
 
-### 3. Include Paths for Nested Errors
+### 3. Keep Validation Pure
 
-```typescript
-// For nested validation errors, include the path
-return {
-  issues: [
-    { message: 'Required field', path: ['user', 'profile', 'bio'] }
-  ]
-};
-```
-
-### 4. Keep Validation Pure
-
-Validation functions should be pure - no side effects:
+Refinement functions should be pure (no side effects):
 
 ```typescript
 // Bad - has side effects
-const BadSchema = createSchema<string>((value) => {
-  console.log('Validating:', value); // Side effect!
-  // ...
+const Bad = v.string().refine(s => {
+  console.log('Validating:', s); // Side effect!
+  return s.length > 0;
 });
 
 // Good - pure function
-const GoodSchema = createSchema<string>((value) => {
-  if (typeof value !== 'string') {
-    return fail('Expected string');
+const Good = v.string().refine(s => s.length > 0, 'Required');
+```
+
+### 4. Use Descriptive Error Messages
+
+```typescript
+// Bad
+v.string().refine(s => s.length > 0, 'Invalid');
+
+// Good
+v.string().refine(s => s.length > 0, 'Name is required');
+```
+
+### 5. Include Paths for Nested Errors
+
+```typescript
+v.object({
+  user: v.object({
+    email: v.string(),
+  }),
+}).superRefine((data, ctx) => {
+  if (!data.user.email.includes('@')) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Invalid email format',
+      path: ['user', 'email'], // Include full path
+    });
   }
-  return { value };
 });
 ```
 

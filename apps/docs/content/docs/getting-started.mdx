@@ -25,90 +25,154 @@ yarn add valrs
 
 ## Basic Usage
 
-### Initialize the WASM Module
-
-Before using any validation, you must initialize the WebAssembly module. This only needs to be done once at application startup:
+### Import and Create Schemas
 
 ```typescript
-import { init, isInitialized } from 'valrs';
+import { v } from 'valrs';
 
-// Initialize WASM (call once at app startup)
-await init();
+// Create a simple schema
+const schema = v.string();
 
-// Check if initialization was successful
-console.log(isInitialized()); // true
+// Parse data (throws on invalid input)
+const result = schema.parse('hello');
+console.log(result); // 'hello'
+
+// Safe parse (returns result object)
+const safeResult = schema.safeParse('hello');
+if (safeResult.success) {
+  console.log(safeResult.data); // 'hello'
+} else {
+  console.log(safeResult.error); // ValError with Zod-compatible API
+}
 ```
 
-<Callout type="info">
-  In Node.js, valrs uses a pure JavaScript fallback, so initialization is instant. In browsers, the WASM binary is loaded asynchronously.
-</Callout>
-
-### Validate Values
-
-Use the built-in schemas to validate values:
+### Define Object Schemas
 
 ```typescript
-import { StringSchema, Int32Schema, BooleanSchema, isValidationSuccess } from 'valrs';
+import { v } from 'valrs';
 
-// Validate a string
-const stringResult = StringSchema['~standard'].validate('hello');
-if (isValidationSuccess(stringResult)) {
-  console.log(stringResult.value); // 'hello'
-}
+const User = v.object({
+  id: v.number().int().positive(),
+  name: v.string().min(1).max(100),
+  email: v.string().email(),
+  role: v.enum(['admin', 'user', 'guest']),
+  createdAt: v.date(),
+});
 
-// Validate an integer
-const intResult = Int32Schema['~standard'].validate(42);
-if (isValidationSuccess(intResult)) {
-  console.log(intResult.value); // 42
-}
+// Type inference
+type User = v.infer<typeof User>;
 
-// Validate a boolean
-const boolResult = BooleanSchema['~standard'].validate(true);
-if (isValidationSuccess(boolResult)) {
-  console.log(boolResult.value); // true
-}
+// Parse and validate
+const user = User.parse({
+  id: 1,
+  name: 'Alice',
+  email: 'alice@example.com',
+  role: 'admin',
+  createdAt: new Date(),
+});
 ```
 
 ### Handle Validation Errors
 
-When validation fails, the result contains an array of issues:
+When validation fails, `parse()` throws a `ValError` with a Zod-compatible API:
 
 ```typescript
-import { Int32Schema, isValidationFailure } from 'valrs';
+import { v, ValError } from 'valrs';
 
-const result = Int32Schema['~standard'].validate('not a number');
+const User = v.object({
+  name: v.string().min(1),
+  age: v.number().int().positive(),
+});
 
-if (isValidationFailure(result)) {
-  for (const issue of result.issues) {
-    console.log(issue.message); // 'Expected i32'
-    console.log(issue.path);    // undefined (root-level error)
+try {
+  User.parse({ name: '', age: -5 });
+} catch (error) {
+  if (error instanceof ValError) {
+    // Access all validation issues
+    console.log(error.issues);
+    // [
+    //   { code: 'too_small', path: ['name'], message: 'String must be at least 1 character(s)', ... },
+    //   { code: 'too_small', path: ['age'], message: 'Number must be positive', ... }
+    // ]
+
+    // Format errors as nested object matching data structure
+    console.log(error.format());
+    // {
+    //   _errors: [],
+    //   name: { _errors: ['String must be at least 1 character(s)'] },
+    //   age: { _errors: ['Number must be positive'] }
+    // }
+
+    // Flatten errors for simple form display
+    console.log(error.flatten());
+    // {
+    //   formErrors: [],
+    //   fieldErrors: {
+    //     name: ['String must be at least 1 character(s)'],
+    //     age: ['Number must be positive']
+    //   }
+    // }
   }
+}
+```
+
+For safe parsing without exceptions:
+
+```typescript
+const result = User.safeParse({ name: '', age: -5 });
+
+if (!result.success) {
+  // result.error is a ValError
+  console.log(result.error.issues);
+  console.log(result.error.format());
+  console.log(result.error.flatten());
 }
 ```
 
 ## TypeScript Integration
 
-valrs provides full type inference. The validated value is automatically typed:
+valrs provides full type inference. Define your schema once and get types automatically:
 
 ```typescript
-import { StringSchema, isValidationSuccess } from 'valrs';
+import { v } from 'valrs';
 
-const result = StringSchema['~standard'].validate(unknownValue);
+const UserSchema = v.object({
+  id: v.string().uuid(),
+  email: v.string().email(),
+  profile: v.object({
+    name: v.string(),
+    bio: v.string().optional(),
+  }),
+  tags: v.array(v.string()),
+});
 
-if (isValidationSuccess(result)) {
-  // result.value is typed as `string`
-  const length = result.value.length; // TypeScript knows this is valid
+// Infer the type from the schema
+type User = v.infer<typeof UserSchema>;
+// {
+//   id: string;
+//   email: string;
+//   profile: { name: string; bio?: string };
+//   tags: string[];
+// }
+
+// Use the type in your code
+function createUser(data: User): void {
+  // data is fully typed
 }
+
+// Parse unknown data into typed values
+const user: User = UserSchema.parse(unknownData);
 ```
 
-You can also use the type inference utilities:
+### Input vs Output Types
+
+When using transforms, input and output types may differ:
 
 ```typescript
-import type { InferInput, InferOutput } from 'valrs';
-import { StringSchema } from 'valrs';
+const StringToNumber = v.string().transform((val) => parseInt(val, 10));
 
-type StringInput = InferInput<typeof StringSchema>;   // string
-type StringOutput = InferOutput<typeof StringSchema>; // string
+type Input = v.input<typeof StringToNumber>;  // string
+type Output = v.output<typeof StringToNumber>; // number
 ```
 
 ## Framework Integration
@@ -116,74 +180,137 @@ type StringOutput = InferOutput<typeof StringSchema>; // string
 ### React
 
 ```typescript
-import { useState, useEffect } from 'react';
-import { init, StringSchema, isValidationSuccess } from 'valrs';
+import { useState } from 'react';
+import { v } from 'valrs';
 
-function App() {
-  const [ready, setReady] = useState(false);
-  const [name, setName] = useState('');
-  const [error, setError] = useState<string | null>(null);
+const FormSchema = v.object({
+  email: v.string().email(),
+  password: v.string().min(8),
+});
 
-  useEffect(() => {
-    init().then(() => setReady(true));
-  }, []);
+function LoginForm() {
+  const [errors, setErrors] = useState<Record<string, string[]>>({});
 
-  const handleSubmit = () => {
-    const result = StringSchema['~standard'].validate(name);
-    if (isValidationSuccess(result)) {
-      setError(null);
-      // Submit the validated name
-    } else {
-      setError(result.issues[0]?.message ?? 'Invalid input');
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const data = Object.fromEntries(formData);
+
+    const result = FormSchema.safeParse(data);
+
+    if (!result.success) {
+      setErrors(result.error.flatten().fieldErrors);
+      return;
     }
-  };
 
-  if (!ready) return <div>Loading...</div>;
+    // Submit validated data
+    submitLogin(result.data);
+  };
 
   return (
     <form onSubmit={handleSubmit}>
-      <input value={name} onChange={e => setName(e.target.value)} />
-      {error && <span className="error">{error}</span>}
-      <button type="submit">Submit</button>
+      <input name="email" type="email" />
+      {errors.email && <span>{errors.email[0]}</span>}
+
+      <input name="password" type="password" />
+      {errors.password && <span>{errors.password[0]}</span>}
+
+      <button type="submit">Login</button>
     </form>
   );
 }
 ```
 
-### Next.js
-
-In Next.js, initialize valrs in a client component or API route:
+### Next.js Server Actions
 
 ```typescript
-// app/providers.tsx
-'use client';
+'use server';
 
-import { useEffect, useState, createContext, useContext } from 'react';
-import { init } from 'valrs';
+import { v } from 'valrs';
 
-const ValrsContext = createContext(false);
+const CreatePostSchema = v.object({
+  title: v.string().min(1).max(200),
+  content: v.string().min(1),
+  published: v.boolean().default(false),
+});
 
-export function ValrsProvider({ children }: { children: React.ReactNode }) {
-  const [ready, setReady] = useState(false);
+export async function createPost(formData: FormData) {
+  const data = {
+    title: formData.get('title'),
+    content: formData.get('content'),
+    published: formData.get('published') === 'true',
+  };
 
-  useEffect(() => {
-    init().then(() => setReady(true));
-  }, []);
+  const result = CreatePostSchema.safeParse(data);
 
-  return (
-    <ValrsContext.Provider value={ready}>
-      {children}
-    </ValrsContext.Provider>
-  );
-}
+  if (!result.success) {
+    return { error: result.error.flatten() };
+  }
 
-export function useValrsReady() {
-  return useContext(ValrsContext);
+  // Save to database
+  const post = await db.post.create({ data: result.data });
+  return { success: true, post };
 }
 ```
 
+### Express.js Middleware
+
+```typescript
+import express from 'express';
+import { v, ValSchema } from 'valrs';
+
+const CreateUserSchema = v.object({
+  name: v.string().min(1),
+  email: v.string().email(),
+  age: v.number().int().min(0).max(150),
+});
+
+function validate<T>(schema: ValSchema<unknown, T>) {
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const result = schema.safeParse(req.body);
+
+    if (!result.success) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: result.error.flatten(),
+      });
+    }
+
+    req.body = result.data;
+    next();
+  };
+}
+
+app.post('/users', validate(CreateUserSchema), async (req, res) => {
+  // req.body is validated and typed
+  const user = await createUser(req.body);
+  res.json(user);
+});
+```
+
+## WASM Initialization (Optional)
+
+For maximum performance in browsers, you can explicitly initialize the WebAssembly module:
+
+```typescript
+import { v, init, isInitialized } from 'valrs';
+
+// Optional: explicitly initialize WASM
+await init();
+
+console.log(isInitialized()); // true
+
+// Now use valrs as normal
+const schema = v.string();
+```
+
+<Callout type="info">
+  WASM initialization is automatic in most environments. You only need to call `init()` explicitly if you want to control when the WASM binary is loaded.
+</Callout>
+
 ## Next Steps
 
-- [Primitive Types](/docs/primitives) - Learn about all built-in validators
-- [Custom Schemas](/docs/custom-schemas) - Create your own validation logic
-- [JSON Schema](/docs/json-schema) - Export schemas to JSON Schema format
+- [Primitives](/docs/primitives) - All primitive types and their methods
+- [Objects](/docs/objects) - Object schemas and manipulation
+- [Collections](/docs/collections) - Arrays, tuples, records, maps, and sets
+- [Streaming](/docs/streaming) - O(1) memory validation for large files

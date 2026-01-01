@@ -1,0 +1,387 @@
+---
+title: Collections
+description: Array, tuple, record, map, and set type schemas
+---
+
+# Collections
+
+valrs provides schemas for JavaScript collection types with chainable validation methods.
+
+## Arrays
+
+Create array schemas with `v.array()`:
+
+```typescript
+import { v } from 'valrs';
+
+const schema = v.array(v.string());
+
+schema.parse(['a', 'b', 'c']); // ['a', 'b', 'c']
+schema.parse(['a', 1]);        // throws ZodError (element validation)
+schema.parse('not an array');  // throws ZodError
+```
+
+### Array Methods
+
+| Method | Description |
+|--------|-------------|
+| `.min(n)` | Minimum number of elements |
+| `.max(n)` | Maximum number of elements |
+| `.length(n)` | Exact number of elements |
+| `.nonempty()` | At least one element (alias for `.min(1)`) |
+| `.element` | Access the element schema |
+
+### Array Examples
+
+```typescript
+import { v } from 'valrs';
+
+// Minimum length
+const atLeastOne = v.array(v.number()).min(1);
+atLeastOne.parse([1, 2, 3]); // valid
+atLeastOne.parse([]);        // throws: Array must have at least 1 element(s)
+
+// Maximum length
+const limited = v.array(v.string()).max(3);
+limited.parse(['a', 'b']);           // valid
+limited.parse(['a', 'b', 'c', 'd']); // throws: Array must have at most 3 element(s)
+
+// Exact length
+const pair = v.array(v.number()).length(2);
+pair.parse([1, 2]);    // valid
+pair.parse([1, 2, 3]); // throws: Array must have exactly 2 element(s)
+
+// Non-empty shorthand
+const nonEmpty = v.array(v.string()).nonempty();
+nonEmpty.parse(['hello']); // valid
+nonEmpty.parse([]);        // throws: Array must not be empty
+
+// Combining constraints
+const bounded = v.array(v.number()).min(2).max(5);
+bounded.parse([1, 2, 3]); // valid
+
+// Accessing element schema
+const tags = v.array(v.string().min(1).max(20));
+const tagSchema = tags.element; // ValString with min/max constraints
+```
+
+### Type Inference
+
+```typescript
+import { v } from 'valrs';
+
+const numbersSchema = v.array(v.number());
+type Numbers = v.infer<typeof numbersSchema>;
+// type Numbers = number[]
+
+const usersSchema = v.array(v.object({
+  name: v.string(),
+  age: v.number(),
+}));
+type Users = v.infer<typeof usersSchema>;
+// type Users = { name: string; age: number }[]
+```
+
+## Tuples
+
+Create tuple schemas with fixed element types using `v.tuple()`:
+
+```typescript
+import { v } from 'valrs';
+
+const schema = v.tuple([v.string(), v.number()]);
+
+schema.parse(['hello', 42]);   // ['hello', 42]
+schema.parse(['hello']);       // throws: Expected tuple of length 2
+schema.parse(['hello', '42']); // throws: element validation error
+```
+
+### Tuple with Rest Elements
+
+Use `.rest()` to allow additional elements of a specific type:
+
+```typescript
+import { v } from 'valrs';
+
+// Fixed prefix with variable rest
+const schema = v.tuple([v.string()]).rest(v.number());
+
+schema.parse(['hello']);           // ['hello']
+schema.parse(['hello', 1, 2, 3]);  // ['hello', 1, 2, 3]
+schema.parse(['hello', 'world']);  // throws: rest element validation error
+```
+
+### Tuple Type Inference
+
+```typescript
+import { v } from 'valrs';
+
+// Fixed tuple
+const coordSchema = v.tuple([v.number(), v.number()]);
+type Coord = v.infer<typeof coordSchema>;
+// type Coord = [number, number]
+
+// Tuple with rest
+const argsSchema = v.tuple([v.string()]).rest(v.number());
+type Args = v.infer<typeof argsSchema>;
+// type Args = [string, ...number[]]
+
+// Mixed types
+const recordSchema = v.tuple([v.string(), v.number(), v.boolean()]);
+type Record = v.infer<typeof recordSchema>;
+// type Record = [string, number, boolean]
+```
+
+### Accessing Tuple Items
+
+```typescript
+import { v } from 'valrs';
+
+const schema = v.tuple([v.string(), v.number()]);
+
+// Access individual item schemas
+const items = schema.items;
+// items[0] is ValString
+// items[1] is ValNumber
+```
+
+## Records
+
+Create record (dictionary) schemas with `v.record()`:
+
+```typescript
+import { v } from 'valrs';
+
+// Simple record with string values
+const dict = v.record(v.string());
+dict.parse({ a: 'hello', b: 'world' }); // valid
+
+// Record with typed values
+const counts = v.record(v.string(), v.number());
+counts.parse({ apples: 5, oranges: 3 }); // valid
+counts.parse({ apples: 'five' });        // throws: value validation error
+```
+
+### Record with Key Validation
+
+The first argument specifies the key schema (must be a string schema):
+
+```typescript
+import { v } from 'valrs';
+
+// Keys must be lowercase
+const lowercaseKeys = v.record(
+  v.string().regex(/^[a-z]+$/),
+  v.number()
+);
+lowercaseKeys.parse({ count: 5 });   // valid
+lowercaseKeys.parse({ Count: 5 });   // throws: Invalid key "Count"
+
+// Keys must be specific format
+const envVars = v.record(
+  v.string().regex(/^[A-Z_]+$/),
+  v.string()
+);
+envVars.parse({ API_KEY: 'secret', DEBUG: 'true' }); // valid
+```
+
+### Record Type Inference
+
+```typescript
+import { v } from 'valrs';
+
+// Record<string, string>
+const dictSchema = v.record(v.string());
+type Dict = v.infer<typeof dictSchema>;
+// type Dict = Record<string, string>
+
+// Record<string, number>
+const countsSchema = v.record(v.string(), v.number());
+type Counts = v.infer<typeof countsSchema>;
+// type Counts = Record<string, number>
+
+// Record with complex values
+const usersSchema = v.record(v.string(), v.object({
+  name: v.string(),
+  active: v.boolean(),
+}));
+type UserMap = v.infer<typeof usersSchema>;
+// type UserMap = Record<string, { name: string; active: boolean }>
+```
+
+## Maps
+
+Create JavaScript Map schemas with `v.map()`:
+
+```typescript
+import { v } from 'valrs';
+
+const schema = v.map(v.string(), v.number());
+
+const map = new Map([['a', 1], ['b', 2]]);
+schema.parse(map); // Map { 'a' => 1, 'b' => 2 }
+
+schema.parse({ a: 1 }); // throws: Expected map
+```
+
+### Map with Complex Types
+
+```typescript
+import { v } from 'valrs';
+
+// Map with object keys
+const userScores = v.map(
+  v.object({ id: v.string() }),
+  v.number()
+);
+
+// Map with validated values
+const settings = v.map(
+  v.string(),
+  v.union([v.string(), v.number(), v.boolean()])
+);
+```
+
+### Map Type Inference
+
+```typescript
+import { v } from 'valrs';
+
+const mapSchema = v.map(v.string(), v.number());
+type StringNumberMap = v.infer<typeof mapSchema>;
+// type StringNumberMap = Map<string, number>
+
+const userMapSchema = v.map(
+  v.number(),
+  v.object({ name: v.string() })
+);
+type UserMap = v.infer<typeof userMapSchema>;
+// type UserMap = Map<number, { name: string }>
+```
+
+### JSON Schema Representation
+
+Maps are represented as arrays of `[key, value]` tuples in JSON Schema since JSON doesn't support Map natively:
+
+```json
+{
+  "type": "array",
+  "items": {
+    "type": "array",
+    "prefixItems": [
+      { "type": "string" },
+      { "type": "number" }
+    ],
+    "minItems": 2,
+    "maxItems": 2
+  },
+  "description": "Map represented as array of [key, value] tuples"
+}
+```
+
+## Sets
+
+Create JavaScript Set schemas with `v.set()`:
+
+```typescript
+import { v } from 'valrs';
+
+const schema = v.set(v.string());
+
+schema.parse(new Set(['a', 'b', 'c'])); // Set { 'a', 'b', 'c' }
+schema.parse(['a', 'b']);               // throws: Expected set
+```
+
+### Set with Validated Elements
+
+```typescript
+import { v } from 'valrs';
+
+// Set of positive numbers
+const positiveSet = v.set(v.number().positive());
+positiveSet.parse(new Set([1, 2, 3]));  // valid
+positiveSet.parse(new Set([1, -2, 3])); // throws: element validation error
+
+// Set of emails
+const emailSet = v.set(v.string().email());
+emailSet.parse(new Set(['a@b.com', 'c@d.com'])); // valid
+```
+
+### Set Type Inference
+
+```typescript
+import { v } from 'valrs';
+
+const stringSetSchema = v.set(v.string());
+type StringSet = v.infer<typeof stringSetSchema>;
+// type StringSet = Set<string>
+
+const numberSetSchema = v.set(v.number().int());
+type IntSet = v.infer<typeof numberSetSchema>;
+// type IntSet = Set<number>
+```
+
+### JSON Schema Representation
+
+Sets are represented as arrays with `uniqueItems: true` in JSON Schema:
+
+```json
+{
+  "type": "array",
+  "items": { "type": "string" },
+  "uniqueItems": true,
+  "description": "Set represented as array with unique items"
+}
+```
+
+## Nested Collections
+
+Collections can be nested to create complex data structures:
+
+```typescript
+import { v } from 'valrs';
+
+// Array of arrays (matrix)
+const matrix = v.array(v.array(v.number()));
+type Matrix = v.infer<typeof matrix>;
+// type Matrix = number[][]
+
+// Record of arrays
+const grouped = v.record(v.string(), v.array(v.number()));
+type Grouped = v.infer<typeof grouped>;
+// type Grouped = Record<string, number[]>
+
+// Array of tuples
+const pairs = v.array(v.tuple([v.string(), v.number()]));
+type Pairs = v.infer<typeof pairs>;
+// type Pairs = [string, number][]
+
+// Map of sets
+const graph = v.map(v.string(), v.set(v.string()));
+type Graph = v.infer<typeof graph>;
+// type Graph = Map<string, Set<string>>
+```
+
+## Custom Error Messages
+
+Pass custom error messages to collection validators:
+
+```typescript
+import { v } from 'valrs';
+
+const tags = v.array(v.string())
+  .min(1, 'At least one tag is required')
+  .max(10, 'Maximum 10 tags allowed');
+
+const coords = v.array(v.number())
+  .length(2, 'Coordinates must have exactly 2 values');
+
+const items = v.array(v.string())
+  .nonempty('Items list cannot be empty');
+```
+
+## Next Steps
+
+- [Objects](/docs/objects) - Object schemas and methods
+- [Unions](/docs/unions) - Union types and enums
+- [Custom Schemas](/docs/custom-schemas) - Creating custom validation logic
