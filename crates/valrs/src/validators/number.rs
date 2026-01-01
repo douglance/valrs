@@ -1,8 +1,8 @@
 //! Number validation implementations.
 
 use crate::validators::add_schema_uri;
-use crate::{JsonSchemaTarget, StandardJsonSchema, Valrs, ValidationResult};
-use serde_json::{json, Value};
+use crate::{JsonSchemaTarget, StandardJsonSchema, ValidationResult, Valrs};
+use serde_json::{Value, json};
 
 // =============================================================================
 // Signed integer implementations
@@ -163,10 +163,9 @@ impl Valrs for u8 {
     fn validate(value: &Value) -> ValidationResult<Self::Output> {
         match value.as_u64() {
             Some(n) if n <= u8::MAX as u64 => ValidationResult::success(n as u8),
-            Some(_) => ValidationResult::failure(format!(
-                "Integer out of range for u8 (0 to {})",
-                u8::MAX
-            )),
+            Some(_) => {
+                ValidationResult::failure(format!("Integer out of range for u8 (0 to {})", u8::MAX))
+            }
             None => ValidationResult::failure("Expected non-negative integer"),
         }
     }
@@ -381,8 +380,7 @@ mod tests {
 
     #[test]
     fn test_i32_json_schema() {
-        let schema =
-            <i32 as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::Draft202012);
+        let schema = <i32 as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::Draft202012);
         assert_eq!(schema["type"], "integer");
         assert_eq!(
             schema["$schema"],
@@ -392,20 +390,15 @@ mod tests {
 
     #[test]
     fn test_u64_json_schema() {
-        let schema =
-            <u64 as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::OpenApi30);
+        let schema = <u64 as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::OpenApi30);
         assert_eq!(schema["type"], "integer");
         assert!(schema.get("$schema").is_none());
     }
 
     #[test]
     fn test_f64_json_schema() {
-        let schema =
-            <f64 as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::Draft07);
+        let schema = <f64 as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::Draft07);
         assert_eq!(schema["type"], "number");
-        assert_eq!(
-            schema["$schema"],
-            "http://json-schema.org/draft-07/schema#"
-        );
+        assert_eq!(schema["$schema"], "http://json-schema.org/draft-07/schema#");
     }
 }

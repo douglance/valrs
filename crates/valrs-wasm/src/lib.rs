@@ -45,14 +45,14 @@
 //! const result = registry.validate("User", { name: "Alice" });
 //! ```
 
+use js_sys;
 use serde::Serialize;
 use serde_json::{Map, Value};
 use std::collections::{HashMap, HashSet};
 use wasm_bindgen::prelude::*;
-use js_sys;
 
 use valrs::{
-    JsonSchemaTarget, PathSegment, StandardJsonSchema, Valrs, ValidationIssue, ValidationResult,
+    JsonSchemaTarget, PathSegment, StandardJsonSchema, ValidationIssue, ValidationResult, Valrs,
 };
 
 // =============================================================================
@@ -545,7 +545,8 @@ fn execute_compiled(value: &Value, compiled: &CompiledSchema) -> ValidationResul
             ValidationOp::CheckArrayItems => {
                 // Get array info without mutable borrow first
                 let (current_idx, should_process) = {
-                    if let Some(ExecutionContext::Array { current_index, .. }) = context_stack.last()
+                    if let Some(ExecutionContext::Array { current_index, .. }) =
+                        context_stack.last()
                     {
                         // Get the parent context to find the array
                         let parent_ctx: Vec<_> = context_stack
@@ -598,8 +599,9 @@ fn execute_compiled(value: &Value, compiled: &CompiledSchema) -> ValidationResul
             ValidationOp::ExitArray => {
                 // Get array info without mutable borrow first
                 let (arr_len, items_start) = {
-                    if let Some(ExecutionContext::Array { items_ops_start, .. }) =
-                        context_stack.last()
+                    if let Some(ExecutionContext::Array {
+                        items_ops_start, ..
+                    }) = context_stack.last()
                     {
                         let parent_ctx: Vec<_> = context_stack
                             .iter()
@@ -659,7 +661,10 @@ fn execute_compiled(value: &Value, compiled: &CompiledSchema) -> ValidationResul
 fn execute_compiled_bool(value: &Value, compiled: &CompiledSchema) -> bool {
     let mut context_stack: Vec<ExecutionContext> = Vec::new();
 
-    fn get_current_value<'a>(root: &'a Value, context_stack: &[ExecutionContext]) -> Option<&'a Value> {
+    fn get_current_value<'a>(
+        root: &'a Value,
+        context_stack: &[ExecutionContext],
+    ) -> Option<&'a Value> {
         let mut current = root;
         for ctx in context_stack {
             match ctx {
@@ -690,56 +695,72 @@ fn execute_compiled_bool(value: &Value, compiled: &CompiledSchema) -> bool {
             ValidationOp::CheckMinimum(min) => {
                 if let Some(v) = get_current_value(value, &context_stack) {
                     if let Some(n) = v.as_f64() {
-                        if n < *min { return false; }
+                        if n < *min {
+                            return false;
+                        }
                     }
                 }
             }
             ValidationOp::CheckMaximum(max) => {
                 if let Some(v) = get_current_value(value, &context_stack) {
                     if let Some(n) = v.as_f64() {
-                        if n > *max { return false; }
+                        if n > *max {
+                            return false;
+                        }
                     }
                 }
             }
             ValidationOp::CheckExclusiveMinimum(min) => {
                 if let Some(v) = get_current_value(value, &context_stack) {
                     if let Some(n) = v.as_f64() {
-                        if n <= *min { return false; }
+                        if n <= *min {
+                            return false;
+                        }
                     }
                 }
             }
             ValidationOp::CheckExclusiveMaximum(max) => {
                 if let Some(v) = get_current_value(value, &context_stack) {
                     if let Some(n) = v.as_f64() {
-                        if n >= *max { return false; }
+                        if n >= *max {
+                            return false;
+                        }
                     }
                 }
             }
             ValidationOp::CheckMinLength(min) => {
                 if let Some(v) = get_current_value(value, &context_stack) {
                     if let Some(s) = v.as_str() {
-                        if s.len() < *min { return false; }  // Use byte len for speed
+                        if s.len() < *min {
+                            return false;
+                        } // Use byte len for speed
                     }
                 }
             }
             ValidationOp::CheckMaxLength(max) => {
                 if let Some(v) = get_current_value(value, &context_stack) {
                     if let Some(s) = v.as_str() {
-                        if s.len() > *max { return false; }  // Use byte len for speed
+                        if s.len() > *max {
+                            return false;
+                        } // Use byte len for speed
                     }
                 }
             }
             ValidationOp::CheckMinItems(min) => {
                 if let Some(v) = get_current_value(value, &context_stack) {
                     if let Some(arr) = v.as_array() {
-                        if arr.len() < *min { return false; }
+                        if arr.len() < *min {
+                            return false;
+                        }
                     }
                 }
             }
             ValidationOp::CheckMaxItems(max) => {
                 if let Some(v) = get_current_value(value, &context_stack) {
                     if let Some(arr) = v.as_array() {
-                        if arr.len() > *max { return false; }
+                        if arr.len() > *max {
+                            return false;
+                        }
                     }
                 }
             }
@@ -755,23 +776,33 @@ fn execute_compiled_bool(value: &Value, compiled: &CompiledSchema) -> bool {
                 if let Some(obj_value) = get_current_value(value, &context_stack) {
                     if let Some(obj) = obj_value.as_object() {
                         if obj.contains_key(key) {
-                            if let Some(ExecutionContext::Object { current_key }) = context_stack.last_mut() {
+                            if let Some(ExecutionContext::Object { current_key }) =
+                                context_stack.last_mut()
+                            {
                                 *current_key = Some(key.clone());
                             }
                         } else if *required {
-                            return false;  // Missing required property
+                            return false; // Missing required property
                         } else {
                             // Skip optional property ops
                             let mut depth = 0;
                             ip += 1;
                             while ip < compiled.ops.len() {
                                 match &compiled.ops[ip] {
-                                    ValidationOp::EnterObject | ValidationOp::EnterArray => depth += 1,
+                                    ValidationOp::EnterObject | ValidationOp::EnterArray => {
+                                        depth += 1
+                                    }
                                     ValidationOp::ExitObject | ValidationOp::ExitArray => {
-                                        if depth == 0 { ip -= 1; break; }
+                                        if depth == 0 {
+                                            ip -= 1;
+                                            break;
+                                        }
                                         depth -= 1;
                                     }
-                                    ValidationOp::CheckProperty { .. } if depth == 0 => { ip -= 1; break; }
+                                    ValidationOp::CheckProperty { .. } if depth == 0 => {
+                                        ip -= 1;
+                                        break;
+                                    }
                                     _ => {}
                                 }
                                 ip += 1;
@@ -791,7 +822,8 @@ fn execute_compiled_bool(value: &Value, compiled: &CompiledSchema) -> bool {
             }
             ValidationOp::CheckArrayItems => {
                 let arr_len = {
-                    let parent_ctx: Vec<_> = context_stack.iter()
+                    let parent_ctx: Vec<_> = context_stack
+                        .iter()
                         .take(context_stack.len().saturating_sub(1))
                         .cloned()
                         .collect();
@@ -815,7 +847,10 @@ fn execute_compiled_bool(value: &Value, compiled: &CompiledSchema) -> bool {
                             ValidationOp::EnterArray => depth += 1,
                             ValidationOp::ExitArray => {
                                 depth -= 1;
-                                if depth == 0 { ip -= 1; break; }
+                                if depth == 0 {
+                                    ip -= 1;
+                                    break;
+                                }
                             }
                             _ => {}
                         }
@@ -825,8 +860,12 @@ fn execute_compiled_bool(value: &Value, compiled: &CompiledSchema) -> bool {
             }
             ValidationOp::ExitArray => {
                 let (arr_len, items_start) = {
-                    if let Some(ExecutionContext::Array { items_ops_start, .. }) = context_stack.last() {
-                        let parent_ctx: Vec<_> = context_stack.iter()
+                    if let Some(ExecutionContext::Array {
+                        items_ops_start, ..
+                    }) = context_stack.last()
+                    {
+                        let parent_ctx: Vec<_> = context_stack
+                            .iter()
                             .take(context_stack.len().saturating_sub(1))
                             .cloned()
                             .collect();
@@ -840,7 +879,9 @@ fn execute_compiled_bool(value: &Value, compiled: &CompiledSchema) -> bool {
                     }
                 };
 
-                if let Some(ExecutionContext::Array { current_index, .. }) = context_stack.last_mut() {
+                if let Some(ExecutionContext::Array { current_index, .. }) =
+                    context_stack.last_mut()
+                {
                     *current_index += 1;
                     if *current_index < arr_len {
                         ip = items_start - 1;
@@ -984,7 +1025,8 @@ fn execute_compiled_fast(value: &JsValue, compiled: &CompiledSchema) -> bool {
             }
             ValidationOp::CheckProperty { key, required } => {
                 // Pop previous property value if we had one
-                if let Some(FastExecutionContext::Object { current_key }) = context_stack.last_mut() {
+                if let Some(FastExecutionContext::Object { current_key }) = context_stack.last_mut()
+                {
                     if current_key.is_some() && value_stack.len() > 1 {
                         value_stack.pop();
                     }
@@ -1004,7 +1046,9 @@ fn execute_compiled_fast(value: &JsValue, compiled: &CompiledSchema) -> bool {
                     Ok(v) if !v.is_undefined() => {
                         // Property exists - push to value stack
                         value_stack.push(v);
-                        if let Some(FastExecutionContext::Object { current_key }) = context_stack.last_mut() {
+                        if let Some(FastExecutionContext::Object { current_key }) =
+                            context_stack.last_mut()
+                        {
                             *current_key = Some(key.clone());
                         }
                     }
@@ -1054,14 +1098,17 @@ fn execute_compiled_fast(value: &JsValue, compiled: &CompiledSchema) -> bool {
             ValidationOp::CheckArrayItems => {
                 // Get array info
                 let (current_idx, arr_len) = {
-                    if let Some(FastExecutionContext::Array { current_index, .. }) = context_stack.last() {
+                    if let Some(FastExecutionContext::Array { current_index, .. }) =
+                        context_stack.last()
+                    {
                         // Get the parent array (one level up in value stack, before any item)
                         let parent_idx = if *current_index > 0 {
                             value_stack.len().saturating_sub(2)
                         } else {
                             value_stack.len().saturating_sub(1)
                         };
-                        let len = value_stack.get(parent_idx)
+                        let len = value_stack
+                            .get(parent_idx)
                             .filter(|v| js_sys::Array::is_array(v))
                             .map(|v| js_sys::Array::from(v).length() as usize)
                             .unwrap_or(0);
@@ -1107,14 +1154,20 @@ fn execute_compiled_fast(value: &JsValue, compiled: &CompiledSchema) -> bool {
             }
             ValidationOp::ExitArray => {
                 let (arr_len, items_start) = {
-                    if let Some(FastExecutionContext::Array { items_ops_start, current_index, .. }) = context_stack.last() {
+                    if let Some(FastExecutionContext::Array {
+                        items_ops_start,
+                        current_index,
+                        ..
+                    }) = context_stack.last()
+                    {
                         // Calculate array length from parent
                         let parent_idx = if *current_index > 0 {
                             value_stack.len().saturating_sub(2)
                         } else {
                             value_stack.len().saturating_sub(1)
                         };
-                        let len = value_stack.get(parent_idx)
+                        let len = value_stack
+                            .get(parent_idx)
                             .filter(|v| js_sys::Array::is_array(v))
                             .map(|v| js_sys::Array::from(v).length() as usize)
                             .unwrap_or(0);
@@ -1124,7 +1177,9 @@ fn execute_compiled_fast(value: &JsValue, compiled: &CompiledSchema) -> bool {
                     }
                 };
 
-                if let Some(FastExecutionContext::Array { current_index, .. }) = context_stack.last_mut() {
+                if let Some(FastExecutionContext::Array { current_index, .. }) =
+                    context_stack.last_mut()
+                {
                     // Pop current item if we had one
                     if *current_index < arr_len && value_stack.len() > 1 {
                         value_stack.pop();
@@ -1465,10 +1520,8 @@ impl SchemaRegistry {
         // Compile the schema at registration time for fast validation
         let compiled = compile_schema(&schema);
 
-        self.schemas.insert(
-            name.to_string(),
-            RegisteredSchema { schema, compiled },
-        );
+        self.schemas
+            .insert(name.to_string(), RegisteredSchema { schema, compiled });
 
         Ok(())
     }
@@ -1512,9 +1565,10 @@ impl SchemaRegistry {
     /// # Returns
     /// An object with either `{ value: T }` on success or `{ issues: Issue[] }` on failure.
     pub fn validate(&self, name: &str, value: JsValue) -> Result<JsValue, JsError> {
-        let registered = self.schemas.get(name).ok_or_else(|| {
-            JsError::new(&format!("Schema '{}' not found in registry", name))
-        })?;
+        let registered = self
+            .schemas
+            .get(name)
+            .ok_or_else(|| JsError::new(&format!("Schema '{}' not found in registry", name)))?;
 
         let json_value: Value = serde_wasm_bindgen::from_value(value)
             .map_err(|e| JsError::new(&format!("Failed to deserialize value: {}", e)))?;
@@ -1539,9 +1593,10 @@ impl SchemaRegistry {
     /// `true` if the value is valid, `false` otherwise.
     #[wasm_bindgen(js_name = validateFast)]
     pub fn validate_fast(&self, name: &str, value: JsValue) -> Result<bool, JsError> {
-        let registered = self.schemas.get(name).ok_or_else(|| {
-            JsError::new(&format!("Schema '{}' not found in registry", name))
-        })?;
+        let registered = self
+            .schemas
+            .get(name)
+            .ok_or_else(|| JsError::new(&format!("Schema '{}' not found in registry", name)))?;
 
         // Deserialize input
         let json_value: Value = serde_wasm_bindgen::from_value(value)
@@ -1561,9 +1616,10 @@ impl SchemaRegistry {
     /// The JSON Schema object with the appropriate $schema URI.
     #[wasm_bindgen(js_name = jsonSchema)]
     pub fn json_schema(&self, name: &str, target: &str) -> Result<JsValue, JsError> {
-        let registered = self.schemas.get(name).ok_or_else(|| {
-            JsError::new(&format!("Schema '{}' not found in registry", name))
-        })?;
+        let registered = self
+            .schemas
+            .get(name)
+            .ok_or_else(|| JsError::new(&format!("Schema '{}' not found in registry", name)))?;
 
         let target = parse_target(target)?;
         let mut schema = registered.schema.clone();
@@ -1700,7 +1756,10 @@ fn json_type_name(value: &Value) -> &'static str {
 }
 
 /// Validates an object against object schema constraints.
-fn validate_object_schema(value: &Value, schema: &Map<String, Value>) -> Option<Vec<ValidationIssue>> {
+fn validate_object_schema(
+    value: &Value,
+    schema: &Map<String, Value>,
+) -> Option<Vec<ValidationIssue>> {
     let obj = value.as_object()?;
     let mut issues = Vec::new();
 
@@ -1746,7 +1805,10 @@ fn validate_object_schema(value: &Value, schema: &Map<String, Value>) -> Option<
 }
 
 /// Validates an array against array schema constraints.
-fn validate_array_schema(value: &Value, schema: &Map<String, Value>) -> Option<Vec<ValidationIssue>> {
+fn validate_array_schema(
+    value: &Value,
+    schema: &Map<String, Value>,
+) -> Option<Vec<ValidationIssue>> {
     let arr = value.as_array()?;
     let mut issues = Vec::new();
 
@@ -1802,7 +1864,10 @@ fn validate_array_schema(value: &Value, schema: &Map<String, Value>) -> Option<V
 }
 
 /// Validates a number against numeric schema constraints (minimum, maximum).
-fn validate_number_schema(value: &Value, schema: &Map<String, Value>) -> Option<Vec<ValidationIssue>> {
+fn validate_number_schema(
+    value: &Value,
+    schema: &Map<String, Value>,
+) -> Option<Vec<ValidationIssue>> {
     let num = value.as_f64()?;
     let mut issues = Vec::new();
 
@@ -1862,7 +1927,10 @@ fn validate_number_schema(value: &Value, schema: &Map<String, Value>) -> Option<
 }
 
 /// Validates a string against string schema constraints (minLength, maxLength).
-fn validate_string_schema(value: &Value, schema: &Map<String, Value>) -> Option<Vec<ValidationIssue>> {
+fn validate_string_schema(
+    value: &Value,
+    schema: &Map<String, Value>,
+) -> Option<Vec<ValidationIssue>> {
     let s = value.as_str()?;
     let len = s.chars().count();
     let mut issues = Vec::new();
@@ -1897,7 +1965,6 @@ fn validate_string_schema(value: &Value, schema: &Map<String, Value>) -> Option<
         Some(issues)
     }
 }
-
 
 // =============================================================================
 // Metadata Functions
@@ -2033,10 +2100,9 @@ mod tests {
 
         // Test internal functionality - compile schema and insert
         let compiled = compile_schema(&schema);
-        registry.schemas.insert(
-            "User".to_string(),
-            RegisteredSchema { schema, compiled },
-        );
+        registry
+            .schemas
+            .insert("User".to_string(), RegisteredSchema { schema, compiled });
 
         assert!(registry.has_schema("User"));
         assert!(!registry.has_schema("Unknown"));
@@ -2063,7 +2129,10 @@ mod tests {
         let compiled = compile_schema(&schema);
 
         // Should have CheckType(String) and Done
-        assert!(matches!(&compiled.ops[0], ValidationOp::CheckType(TypeTag::String)));
+        assert!(matches!(
+            &compiled.ops[0],
+            ValidationOp::CheckType(TypeTag::String)
+        ));
         assert!(matches!(&compiled.ops[1], ValidationOp::Done));
     }
 
@@ -2090,13 +2159,19 @@ mod tests {
         let value = json!("hello");
         let compiled_result = execute_compiled(&value, &compiled);
         let interpreted_result = validate_against_schema(&value, &schema);
-        assert_eq!(compiled_result.is_success(), interpreted_result.is_success());
+        assert_eq!(
+            compiled_result.is_success(),
+            interpreted_result.is_success()
+        );
 
         // Test invalid case
         let value = json!(123);
         let compiled_result = execute_compiled(&value, &compiled);
         let interpreted_result = validate_against_schema(&value, &schema);
-        assert_eq!(compiled_result.is_failure(), interpreted_result.is_failure());
+        assert_eq!(
+            compiled_result.is_failure(),
+            interpreted_result.is_failure()
+        );
     }
 
     #[test]
@@ -2311,7 +2386,6 @@ mod tests {
         assert!(check_type_tag(&json!({}), TypeTag::Object));
         assert!(check_type_tag(&json!([]), TypeTag::Array));
     }
-
 }
 
 /// WASM-specific tests that require the wasm32 target.
@@ -2357,7 +2431,10 @@ mod wasm_tests {
         let result = string_json_schema("draft-2020-12").unwrap();
         let result: Value = serde_wasm_bindgen::from_value(result).unwrap();
         assert_eq!(result["type"], "string");
-        assert_eq!(result["$schema"], "https://json-schema.org/draft/2020-12/schema");
+        assert_eq!(
+            result["$schema"],
+            "https://json-schema.org/draft/2020-12/schema"
+        );
     }
 
     #[wasm_bindgen_test]
@@ -2387,11 +2464,15 @@ mod wasm_tests {
         registry.register("TestString", schema.into()).unwrap();
         assert!(registry.has_schema("TestString"));
 
-        let result = registry.validate("TestString", JsValue::from_str("hello")).unwrap();
+        let result = registry
+            .validate("TestString", JsValue::from_str("hello"))
+            .unwrap();
         let result: Value = serde_wasm_bindgen::from_value(result).unwrap();
         assert_eq!(result["value"], "hello");
 
-        let result = registry.validate("TestString", JsValue::from_f64(123.0)).unwrap();
+        let result = registry
+            .validate("TestString", JsValue::from_f64(123.0))
+            .unwrap();
         let result: Value = serde_wasm_bindgen::from_value(result).unwrap();
         assert!(result["issues"].is_array());
     }
@@ -2408,7 +2489,10 @@ mod wasm_tests {
         let result = registry.json_schema("TestObject", "draft-2020-12").unwrap();
         let result: Value = serde_wasm_bindgen::from_value(result).unwrap();
         assert_eq!(result["type"], "object");
-        assert_eq!(result["$schema"], "https://json-schema.org/draft/2020-12/schema");
+        assert_eq!(
+            result["$schema"],
+            "https://json-schema.org/draft/2020-12/schema"
+        );
     }
 
     #[wasm_bindgen_test]

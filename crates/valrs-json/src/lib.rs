@@ -32,7 +32,7 @@
 
 pub use valrs::{JsonSchemaTarget, StandardJsonSchema, Valrs};
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Creates a property schema for use in object schemas (without `$schema` field).
 ///
@@ -129,7 +129,10 @@ pub fn create_object_schema(
 /// assert_eq!(schema["minLength"], 1);
 /// assert_eq!(schema["maxLength"], 100);
 /// ```
-pub fn string_schema_with_constraints(min_length: Option<usize>, max_length: Option<usize>) -> Value {
+pub fn string_schema_with_constraints(
+    min_length: Option<usize>,
+    max_length: Option<usize>,
+) -> Value {
     let mut schema = json!({ "type": "string" });
 
     if let Value::Object(map) = &mut schema {
@@ -165,14 +168,18 @@ mod tests {
         assert_eq!(schema["type"], "object");
         assert_eq!(schema["properties"]["name"]["type"], "string");
         assert_eq!(schema["properties"]["age"]["type"], "integer");
-        assert!(schema["required"]
-            .as_array()
-            .unwrap()
-            .contains(&json!("name")));
-        assert!(schema["required"]
-            .as_array()
-            .unwrap()
-            .contains(&json!("age")));
+        assert!(
+            schema["required"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("name"))
+        );
+        assert!(
+            schema["required"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("age"))
+        );
         assert_eq!(
             schema["$schema"],
             "https://json-schema.org/draft/2020-12/schema"

@@ -3,7 +3,7 @@
 //! Run with: cargo run --example derive_example
 
 use serde_json::json;
-use valrs::{JsonSchemaTarget, StandardJsonSchema, Valrs, ValidationResult};
+use valrs::{JsonSchemaTarget, StandardJsonSchema, ValidationResult, Valrs};
 use valrs_derive::{StandardJsonSchema, Valrs};
 
 /// A user with basic information.
@@ -181,26 +181,53 @@ fn main() {
     // Test 9: Generate JSON Schema for User (OpenAPI 3.0)
     println!("Test 9: JSON Schema for User (OpenAPI 3.0)");
     let user_schema_openapi = User::json_schema_input(JsonSchemaTarget::OpenApi30);
-    println!("{}\n", serde_json::to_string_pretty(&user_schema_openapi).unwrap());
+    println!(
+        "{}\n",
+        serde_json::to_string_pretty(&user_schema_openapi).unwrap()
+    );
 
     // Test 10: Generate JSON Schema for Profile with constraints
     println!("Test 10: JSON Schema for Profile (with minLength/maxLength)");
     let profile_schema = Profile::json_schema_input(JsonSchemaTarget::Draft202012);
-    println!("{}\n", serde_json::to_string_pretty(&profile_schema).unwrap());
+    println!(
+        "{}\n",
+        serde_json::to_string_pretty(&profile_schema).unwrap()
+    );
 
     // Test 11: Primitive type schemas
     println!("Test 11: Primitive type JSON Schemas");
-    println!("  String: {}", <String as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::OpenApi30));
-    println!("  i32:    {}", <i32 as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::OpenApi30));
-    println!("  f64:    {}", <f64 as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::OpenApi30));
-    println!("  bool:   {}", <bool as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::OpenApi30));
-    println!("  ():     {}", <() as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::OpenApi30));
+    println!(
+        "  String: {}",
+        <String as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::OpenApi30)
+    );
+    println!(
+        "  i32:    {}",
+        <i32 as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::OpenApi30)
+    );
+    println!(
+        "  f64:    {}",
+        <f64 as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::OpenApi30)
+    );
+    println!(
+        "  bool:   {}",
+        <bool as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::OpenApi30)
+    );
+    println!(
+        "  ():     {}",
+        <() as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::OpenApi30)
+    );
     println!();
 
     // Test 12: Option<T> schema
     println!("Test 12: Option<String> JSON Schema");
-    println!("  OpenAPI 3.0:   {}", <Option<String> as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::OpenApi30));
-    println!("  Draft 2020-12: {}", <Option<String> as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::Draft202012));
+    println!(
+        "  OpenAPI 3.0:   {}",
+        <Option<String> as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::OpenApi30)
+    );
+    println!(
+        "  Draft 2020-12: {}",
+        <Option<String> as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::Draft202012)
+    );
     println!();
 
     println!("=== All tests complete ===");

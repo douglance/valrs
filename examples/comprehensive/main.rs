@@ -13,7 +13,7 @@
 //! - Edge cases (empty strings, zero values, large numbers, unicode)
 
 use serde_json::json;
-use valrs::{JsonSchemaTarget, StandardJsonSchema, Valrs, ValidationResult};
+use valrs::{JsonSchemaTarget, StandardJsonSchema, ValidationResult, Valrs};
 use valrs_derive::{StandardJsonSchema, Valrs};
 
 // =============================================================================
@@ -52,7 +52,11 @@ impl TestRunner {
         println!("       Actual:   {}", actual);
     }
 
-    fn assert_success<T: std::fmt::Debug>(&mut self, test_name: &str, result: &ValidationResult<T>) {
+    fn assert_success<T: std::fmt::Debug>(
+        &mut self,
+        test_name: &str,
+        result: &ValidationResult<T>,
+    ) {
         match result {
             ValidationResult::Success(val) => {
                 self.pass(test_name, &format!("{:?}", val));
@@ -64,13 +68,24 @@ impl TestRunner {
         }
     }
 
-    fn assert_failure<T: std::fmt::Debug>(&mut self, test_name: &str, result: &ValidationResult<T>, expected_message_contains: &str) {
+    fn assert_failure<T: std::fmt::Debug>(
+        &mut self,
+        test_name: &str,
+        result: &ValidationResult<T>,
+        expected_message_contains: &str,
+    ) {
         match result {
             ValidationResult::Success(val) => {
-                self.fail(test_name, &format!("Failure containing '{}'", expected_message_contains), &format!("Success: {:?}", val));
+                self.fail(
+                    test_name,
+                    &format!("Failure containing '{}'", expected_message_contains),
+                    &format!("Success: {:?}", val),
+                );
             }
             ValidationResult::Failure(issues) => {
-                let has_expected = issues.iter().any(|i| i.message.contains(expected_message_contains));
+                let has_expected = issues
+                    .iter()
+                    .any(|i| i.message.contains(expected_message_contains));
                 if has_expected {
                     let msgs: Vec<_> = issues.iter().map(|i| i.message.as_str()).collect();
                     self.pass(test_name, &format!("Failure: {:?}", msgs));
@@ -86,32 +101,47 @@ impl TestRunner {
         }
     }
 
-    fn assert_failure_at_path<T: std::fmt::Debug>(&mut self, test_name: &str, result: &ValidationResult<T>, expected_path: &str) {
+    fn assert_failure_at_path<T: std::fmt::Debug>(
+        &mut self,
+        test_name: &str,
+        result: &ValidationResult<T>,
+        expected_path: &str,
+    ) {
         match result {
             ValidationResult::Success(val) => {
-                self.fail(test_name, &format!("Failure at path '{}'", expected_path), &format!("Success: {:?}", val));
+                self.fail(
+                    test_name,
+                    &format!("Failure at path '{}'", expected_path),
+                    &format!("Success: {:?}", val),
+                );
             }
             ValidationResult::Failure(issues) => {
                 let has_path = issues.iter().any(|i| {
                     if let Some(path) = &i.path {
-                        let path_str = path.iter().map(|p| match p {
-                            valrs::PathSegment::Key(k) => k.clone(),
-                            valrs::PathSegment::Index(i) => i.to_string(),
-                        }).collect::<Vec<_>>().join(".");
+                        let path_str = path
+                            .iter()
+                            .map(|p| match p {
+                                valrs::PathSegment::Key(k) => k.clone(),
+                                valrs::PathSegment::Index(i) => i.to_string(),
+                            })
+                            .collect::<Vec<_>>()
+                            .join(".");
                         path_str.contains(expected_path)
                     } else {
                         false
                     }
                 });
                 if has_path {
-                    let details: Vec<_> = issues.iter().map(|i| {
-                        format!("{} at {:?}", i.message, i.path)
-                    }).collect();
+                    let details: Vec<_> = issues
+                        .iter()
+                        .map(|i| format!("{} at {:?}", i.message, i.path))
+                        .collect();
                     self.pass(test_name, &format!("{:?}", details));
                 } else {
-                    let details: Vec<_> = issues.iter().map(|i| {
-                        format!("{} at {:?}", i.message, i.path)
-                    }).collect();
+                    let details: Vec<_> = issues
+                        .iter()
+                        .map(|i| format!("{} at {:?}", i.message, i.path))
+                        .collect();
                     self.fail(
                         test_name,
                         &format!("Failure at path '{}'", expected_path),
@@ -122,7 +152,13 @@ impl TestRunner {
         }
     }
 
-    fn assert_schema_has(&mut self, test_name: &str, schema: &serde_json::Value, key: &str, expected: &serde_json::Value) {
+    fn assert_schema_has(
+        &mut self,
+        test_name: &str,
+        schema: &serde_json::Value,
+        key: &str,
+        expected: &serde_json::Value,
+    ) {
         if let Some(actual) = schema.get(key) {
             if actual == expected {
                 self.pass(test_name, &format!("{}: {}", key, expected));
@@ -130,66 +166,128 @@ impl TestRunner {
                 self.fail(test_name, &expected.to_string(), &actual.to_string());
             }
         } else {
-            self.fail(test_name, &format!("{}: {}", key, expected), &format!("{} not found", key));
+            self.fail(
+                test_name,
+                &format!("{}: {}", key, expected),
+                &format!("{} not found", key),
+            );
         }
     }
 
-    fn assert_schema_property_has(&mut self, test_name: &str, schema: &serde_json::Value, prop: &str, key: &str, expected: &serde_json::Value) {
+    fn assert_schema_property_has(
+        &mut self,
+        test_name: &str,
+        schema: &serde_json::Value,
+        prop: &str,
+        key: &str,
+        expected: &serde_json::Value,
+    ) {
         if let Some(props) = schema.get("properties") {
             if let Some(prop_schema) = props.get(prop) {
                 if let Some(actual) = prop_schema.get(key) {
                     if actual == expected {
-                        self.pass(test_name, &format!("properties.{}.{}: {}", prop, key, expected));
+                        self.pass(
+                            test_name,
+                            &format!("properties.{}.{}: {}", prop, key, expected),
+                        );
                     } else {
                         self.fail(test_name, &expected.to_string(), &actual.to_string());
                     }
                 } else {
-                    self.fail(test_name, &format!("properties.{}.{}: {}", prop, key, expected), &format!("{} not found", key));
+                    self.fail(
+                        test_name,
+                        &format!("properties.{}.{}: {}", prop, key, expected),
+                        &format!("{} not found", key),
+                    );
                 }
             } else {
-                self.fail(test_name, &format!("properties.{}.{}: {}", prop, key, expected), &format!("property {} not found", prop));
+                self.fail(
+                    test_name,
+                    &format!("properties.{}.{}: {}", prop, key, expected),
+                    &format!("property {} not found", prop),
+                );
             }
         } else {
-            self.fail(test_name, &format!("properties.{}.{}: {}", prop, key, expected), "no properties");
+            self.fail(
+                test_name,
+                &format!("properties.{}.{}: {}", prop, key, expected),
+                "no properties",
+            );
         }
     }
 
-    fn assert_required_contains(&mut self, test_name: &str, schema: &serde_json::Value, field: &str) {
+    fn assert_required_contains(
+        &mut self,
+        test_name: &str,
+        schema: &serde_json::Value,
+        field: &str,
+    ) {
         if let Some(required) = schema.get("required") {
             if let Some(arr) = required.as_array() {
                 let has_field = arr.iter().any(|v| v.as_str() == Some(field));
                 if has_field {
                     self.pass(test_name, &format!("required contains '{}'", field));
                 } else {
-                    self.fail(test_name, &format!("required contains '{}'", field), &format!("required: {:?}", arr));
+                    self.fail(
+                        test_name,
+                        &format!("required contains '{}'", field),
+                        &format!("required: {:?}", arr),
+                    );
                 }
             } else {
-                self.fail(test_name, &format!("required contains '{}'", field), "required is not an array");
+                self.fail(
+                    test_name,
+                    &format!("required contains '{}'", field),
+                    "required is not an array",
+                );
             }
         } else {
-            self.fail(test_name, &format!("required contains '{}'", field), "no required array");
+            self.fail(
+                test_name,
+                &format!("required contains '{}'", field),
+                "no required array",
+            );
         }
     }
 
-    fn assert_required_not_contains(&mut self, test_name: &str, schema: &serde_json::Value, field: &str) {
+    fn assert_required_not_contains(
+        &mut self,
+        test_name: &str,
+        schema: &serde_json::Value,
+        field: &str,
+    ) {
         if let Some(required) = schema.get("required") {
             if let Some(arr) = required.as_array() {
                 let has_field = arr.iter().any(|v| v.as_str() == Some(field));
                 if !has_field {
                     self.pass(test_name, &format!("required does not contain '{}'", field));
                 } else {
-                    self.fail(test_name, &format!("required should not contain '{}'", field), &format!("required: {:?}", arr));
+                    self.fail(
+                        test_name,
+                        &format!("required should not contain '{}'", field),
+                        &format!("required: {:?}", arr),
+                    );
                 }
             } else {
-                self.pass(test_name, &format!("required does not contain '{}' (no array)", field));
+                self.pass(
+                    test_name,
+                    &format!("required does not contain '{}' (no array)", field),
+                );
             }
         } else {
-            self.pass(test_name, &format!("required does not contain '{}' (no required)", field));
+            self.pass(
+                test_name,
+                &format!("required does not contain '{}' (no required)", field),
+            );
         }
     }
 
     fn summary(&self) {
-        println!("\n=== Results: {}/{} passed ===", self.passed, self.passed + self.failed);
+        println!(
+            "\n=== Results: {}/{} passed ===",
+            self.passed,
+            self.passed + self.failed
+        );
         if self.failed > 0 {
             std::process::exit(1);
         }
@@ -375,12 +473,12 @@ fn test_primitive_types(runner: &mut TestRunner) {
     runner.assert_success("u64 validation: u64::MAX", &result);
 
     // f32
-    let result = f32::validate(&json!(3.14));
-    runner.assert_success("f32 validation: 3.14", &result);
+    let result = f32::validate(&json!(1.234));
+    runner.assert_success("f32 validation: 1.234", &result);
 
     // f64
-    let result = f64::validate(&json!(3.141592653589793));
-    runner.assert_success("f64 validation: pi", &result);
+    let result = f64::validate(&json!(1.23456789));
+    runner.assert_success("f64 validation: 1.23456789", &result);
 
     // Unit (null)
     let result = <()>::validate(&json!(null));
@@ -413,7 +511,7 @@ fn test_integer_validation(runner: &mut TestRunner) {
     let result = i32::validate(&json!("42"));
     runner.assert_failure("String as i32", &result, "Expected integer");
 
-    let result = i32::validate(&json!(3.14));
+    let result = i32::validate(&json!(3.15));
     runner.assert_failure("Float as i32", &result, "Expected integer");
 
     let result = i32::validate(&json!(null));
@@ -507,8 +605,8 @@ fn test_option_validation(runner: &mut TestRunner) {
     let result = <Option<f64>>::validate(&json!(null));
     runner.assert_success("Option<f64>: null -> None", &result);
 
-    let result = <Option<f64>>::validate(&json!(3.14));
-    runner.assert_success("Option<f64>: 3.14 -> Some(3.14)", &result);
+    let result = <Option<f64>>::validate(&json!(1.234));
+    runner.assert_success("Option<f64>: 1.234 -> Some(1.234)", &result);
 
     // Nested Option
     let result = <Option<Option<i32>>>::validate(&json!(null));
@@ -563,7 +661,11 @@ fn test_struct_validation(runner: &mut TestRunner) {
         "nickname": "Nick"
     });
     let result = User::validate(&missing_many);
-    runner.assert_failure("Missing name, emailAddress, age", &result, "Missing required field");
+    runner.assert_failure(
+        "Missing name, emailAddress, age",
+        &result,
+        "Missing required field",
+    );
 
     // Wrong type for field
     let wrong_type = json!({
@@ -772,21 +874,56 @@ fn test_json_schema_generation(runner: &mut TestRunner) {
     // User schema
     let user_schema = User::json_schema_input(JsonSchemaTarget::Draft202012);
 
-    runner.assert_schema_has("User has type object", &user_schema, "type", &json!("object"));
+    runner.assert_schema_has(
+        "User has type object",
+        &user_schema,
+        "type",
+        &json!("object"),
+    );
     runner.assert_required_contains("User requires name", &user_schema, "name");
     runner.assert_required_contains("User requires emailAddress", &user_schema, "emailAddress");
     runner.assert_required_contains("User requires age", &user_schema, "age");
     runner.assert_required_not_contains("User does not require nickname", &user_schema, "nickname");
 
-    runner.assert_schema_property_has("User name is string", &user_schema, "name", "type", &json!("string"));
-    runner.assert_schema_property_has("User emailAddress is string", &user_schema, "emailAddress", "type", &json!("string"));
-    runner.assert_schema_property_has("User age is integer", &user_schema, "age", "type", &json!("integer"));
+    runner.assert_schema_property_has(
+        "User name is string",
+        &user_schema,
+        "name",
+        "type",
+        &json!("string"),
+    );
+    runner.assert_schema_property_has(
+        "User emailAddress is string",
+        &user_schema,
+        "emailAddress",
+        "type",
+        &json!("string"),
+    );
+    runner.assert_schema_property_has(
+        "User age is integer",
+        &user_schema,
+        "age",
+        "type",
+        &json!("integer"),
+    );
 
     // Profile schema with constraints
     let profile_schema = Profile::json_schema_input(JsonSchemaTarget::Draft202012);
 
-    runner.assert_schema_property_has("Profile username minLength", &profile_schema, "username", "minLength", &json!(2));
-    runner.assert_schema_property_has("Profile username maxLength", &profile_schema, "username", "maxLength", &json!(50));
+    runner.assert_schema_property_has(
+        "Profile username minLength",
+        &profile_schema,
+        "username",
+        "minLength",
+        &json!(2),
+    );
+    runner.assert_schema_property_has(
+        "Profile username maxLength",
+        &profile_schema,
+        "username",
+        "maxLength",
+        &json!(50),
+    );
 
     // Note: The bio property schema might have minLength but might not due to how optional fields are handled
     // Check that it exists as a property
@@ -799,8 +936,14 @@ fn test_json_schema_generation(runner: &mut TestRunner) {
     }
 
     // Primitive schemas
-    let string_schema = <String as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::OpenApi30);
-    runner.assert_schema_has("String schema type", &string_schema, "type", &json!("string"));
+    let string_schema =
+        <String as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::OpenApi30);
+    runner.assert_schema_has(
+        "String schema type",
+        &string_schema,
+        "type",
+        &json!("string"),
+    );
 
     let i32_schema = <i32 as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::OpenApi30);
     runner.assert_schema_has("i32 schema type", &i32_schema, "type", &json!("integer"));
@@ -841,18 +984,33 @@ fn test_json_schema_targets(runner: &mut TestRunner) {
     if schema_openapi.get("$schema").is_none() {
         runner.pass("OpenApi30 has no $schema", "correct");
     } else {
-        runner.fail("OpenApi30 has no $schema", "no $schema", &format!("$schema: {:?}", schema_openapi.get("$schema")));
+        runner.fail(
+            "OpenApi30 has no $schema",
+            "no $schema",
+            &format!("$schema: {:?}", schema_openapi.get("$schema")),
+        );
     }
 
     // Option<T> schema differences
-    let opt_string_openapi = <Option<String> as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::OpenApi30);
-    runner.assert_schema_has("Option<String> OpenAPI has nullable", &opt_string_openapi, "nullable", &json!(true));
+    let opt_string_openapi =
+        <Option<String> as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::OpenApi30);
+    runner.assert_schema_has(
+        "Option<String> OpenAPI has nullable",
+        &opt_string_openapi,
+        "nullable",
+        &json!(true),
+    );
 
-    let opt_string_draft = <Option<String> as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::Draft202012);
+    let opt_string_draft =
+        <Option<String> as StandardJsonSchema>::json_schema_input(JsonSchemaTarget::Draft202012);
     if opt_string_draft.get("anyOf").is_some() {
         runner.pass("Option<String> Draft2020 has anyOf", "present");
     } else {
-        runner.fail("Option<String> Draft2020 has anyOf", "anyOf present", "anyOf missing");
+        runner.fail(
+            "Option<String> Draft2020 has anyOf",
+            "anyOf present",
+            "anyOf missing",
+        );
     }
 }
 
@@ -917,7 +1075,11 @@ fn test_edge_cases(runner: &mut TestRunner) {
     // Empty object
     let empty_obj = json!({});
     let result = User::validate(&empty_obj);
-    runner.assert_failure("Empty object missing all required fields", &result, "Missing required field");
+    runner.assert_failure(
+        "Empty object missing all required fields",
+        &result,
+        "Missing required field",
+    );
 
     // All integer types struct
     let all_ints = json!({
@@ -948,8 +1110,8 @@ fn test_edge_cases(runner: &mut TestRunner) {
 
     // All float types struct
     let all_floats = json!({
-        "float_32": 3.14,
-        "float_64": 3.141592653589793
+        "float_32": 1.234,
+        "float_64": 5.678901234
     });
     let result = AllFloats::validate(&all_floats);
     runner.assert_success("All float types", &result);
@@ -974,7 +1136,7 @@ fn test_edge_cases(runner: &mut TestRunner) {
         "opt_string": "hello",
         "opt_bool": true,
         "opt_i32": 42,
-        "opt_f64": 3.14
+        "opt_f64": 1.618
     });
     let result = OptionalPrimitives::validate(&all_present);
     runner.assert_success("All optional fields present", &result);

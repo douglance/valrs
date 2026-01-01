@@ -9,8 +9,8 @@ mod string;
 
 pub use string::{MaxLengthString, MinLengthString, NonEmptyString};
 
-use crate::{JsonSchemaTarget, StandardJsonSchema, Valrs, ValidationResult};
-use serde_json::{json, Value};
+use crate::{JsonSchemaTarget, StandardJsonSchema, ValidationResult, Valrs};
+use serde_json::{Value, json};
 
 // =============================================================================
 // Boolean implementations

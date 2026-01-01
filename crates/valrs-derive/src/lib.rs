@@ -6,8 +6,8 @@ use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{
-    parse_macro_input, Attribute, Data, DeriveInput, Error, Expr, ExprLit, Field, Fields, Ident,
-    Lit, Type,
+    Attribute, Data, DeriveInput, Error, Expr, ExprLit, Field, Fields, Ident, Lit, Type,
+    parse_macro_input,
 };
 
 /// Field-level schema attributes.
@@ -140,34 +140,32 @@ fn derive_valrs_impl(input: DeriveInput) -> syn::Result<TokenStream2> {
                 return Err(Error::new_spanned(
                     struct_name,
                     "Valrs derive does not support tuple structs",
-                ))
+                ));
             }
             Fields::Unit => {
                 return Err(Error::new_spanned(
                     struct_name,
                     "Valrs derive does not support unit structs",
-                ))
+                ));
             }
         },
         Data::Enum(_) => {
             return Err(Error::new_spanned(
                 struct_name,
                 "Valrs derive does not support enums yet",
-            ))
+            ));
         }
         Data::Union(_) => {
             return Err(Error::new_spanned(
                 struct_name,
                 "Valrs derive does not support unions",
-            ))
+            ));
         }
     };
 
     // Parse all fields
-    let parsed_fields: Vec<ParsedField> = fields
-        .iter()
-        .map(parse_field)
-        .collect::<syn::Result<_>>()?;
+    let parsed_fields: Vec<ParsedField> =
+        fields.iter().map(parse_field).collect::<syn::Result<_>>()?;
 
     // Generate validation code for each field
     let field_validations = parsed_fields
@@ -229,13 +227,16 @@ fn generate_field_validation(field: &ParsedField) -> TokenStream2 {
 
     // Generate additional string length validations if specified
     let length_validations = generate_length_validations(field, &json_key);
-    let has_length_validations = field.attrs.min_length.is_some() || field.attrs.max_length.is_some();
+    let has_length_validations =
+        field.attrs.min_length.is_some() || field.attrs.max_length.is_some();
 
     if field.attrs.optional {
         // For optional fields, missing or null values become None.
         // We need to extract the inner type from Option<T> to validate it directly
         // when length validations are present.
-        if let Some(inner_ty) = extract_option_inner_type(field_ty).filter(|_| has_length_validations) {
+        if let Some(inner_ty) =
+            extract_option_inner_type(field_ty).filter(|_| has_length_validations)
+        {
             // Validate the inner type directly and wrap in Some
             quote! {
                 let #field_ident: #field_ty = match obj.get(#json_key) {
@@ -450,34 +451,32 @@ fn derive_standard_json_schema_impl(input: DeriveInput) -> syn::Result<TokenStre
                 return Err(Error::new_spanned(
                     struct_name,
                     "StandardJsonSchema derive does not support tuple structs",
-                ))
+                ));
             }
             Fields::Unit => {
                 return Err(Error::new_spanned(
                     struct_name,
                     "StandardJsonSchema derive does not support unit structs",
-                ))
+                ));
             }
         },
         Data::Enum(_) => {
             return Err(Error::new_spanned(
                 struct_name,
                 "StandardJsonSchema derive does not support enums yet",
-            ))
+            ));
         }
         Data::Union(_) => {
             return Err(Error::new_spanned(
                 struct_name,
                 "StandardJsonSchema derive does not support unions",
-            ))
+            ));
         }
     };
 
     // Parse all fields
-    let parsed_fields: Vec<ParsedField> = fields
-        .iter()
-        .map(parse_field)
-        .collect::<syn::Result<_>>()?;
+    let parsed_fields: Vec<ParsedField> =
+        fields.iter().map(parse_field).collect::<syn::Result<_>>()?;
 
     // Generate property schema for each field
     let property_insertions = parsed_fields
@@ -543,7 +542,8 @@ fn derive_standard_json_schema_impl(input: DeriveInput) -> syn::Result<TokenStre
 fn generate_property_insertion(field: &ParsedField) -> TokenStream2 {
     let field_ty = &field.ty;
     let json_key = field.json_key();
-    let has_string_constraints = field.attrs.min_length.is_some() || field.attrs.max_length.is_some();
+    let has_string_constraints =
+        field.attrs.min_length.is_some() || field.attrs.max_length.is_some();
 
     // For optional fields, get the inner type's schema
     let inner_ty = if field.attrs.optional {
@@ -557,21 +557,29 @@ fn generate_property_insertion(field: &ParsedField) -> TokenStream2 {
 
     if has_string_constraints {
         // Generate string schema with constraints
-        let min_len_code = field.attrs.min_length.map(|min| {
-            quote! {
-                if let Value::Object(ref mut m) = prop_schema {
-                    m.insert("minLength".to_string(), Value::Number(#min.into()));
+        let min_len_code = field
+            .attrs
+            .min_length
+            .map(|min| {
+                quote! {
+                    if let Value::Object(ref mut m) = prop_schema {
+                        m.insert("minLength".to_string(), Value::Number(#min.into()));
+                    }
                 }
-            }
-        }).unwrap_or_else(|| quote! {});
+            })
+            .unwrap_or_else(|| quote! {});
 
-        let max_len_code = field.attrs.max_length.map(|max| {
-            quote! {
-                if let Value::Object(ref mut m) = prop_schema {
-                    m.insert("maxLength".to_string(), Value::Number(#max.into()));
+        let max_len_code = field
+            .attrs
+            .max_length
+            .map(|max| {
+                quote! {
+                    if let Value::Object(ref mut m) = prop_schema {
+                        m.insert("maxLength".to_string(), Value::Number(#max.into()));
+                    }
                 }
-            }
-        }).unwrap_or_else(|| quote! {});
+            })
+            .unwrap_or_else(|| quote! {});
 
         quote! {
             {

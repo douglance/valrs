@@ -1,8 +1,8 @@
 //! Option validation implementations.
 
 use crate::validators::add_schema_uri;
-use crate::{JsonSchemaTarget, StandardJsonSchema, Valrs, ValidationResult};
-use serde_json::{json, Value};
+use crate::{JsonSchemaTarget, StandardJsonSchema, ValidationResult, Valrs};
+use serde_json::{Value, json};
 
 impl<T: Valrs> Valrs for Option<T> {
     type Input = Option<T::Input>;
